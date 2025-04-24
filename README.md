@@ -91,24 +91,6 @@ Se o limite de requisições for excedido, a API retornará um erro com status `
     }
     ```
 
-## Estrutura do Projeto
-
-├── .env.local          # Arquivo para variáveis de ambiente (sua chave API)
-├── next.config.js      # Configuração do Next.js
-├── package-lock.json   # Lockfile do npm
-├── package.json        # Arquivo de manifesto do npm
-├── pnpm-lock.yaml      # Lockfile do pnpm (se usado)
-├── README.md           # Este arquivo
-├── src/
-│   ├── lib/
-│   │   └── extractFilters.ts # Lógica para extrair filtros usando Gemini
-│   ├── pages/
-│   │   └── api/
-│   │       └── extract.ts    # Handler da API para o endpoint /api/extract
-│   └── utils/
-│       └── ...             # Outras utilidades (se houver)
-└── tsconfig.json       # Configuração do TypeScript
-
 ## Próximos Passos
 
 * **Implementar a lógica de busca real:** Substituir os dados mockados na resposta da API pela integração com um banco de dados ou serviço de busca de licitações, utilizando os filtros extraídos.
@@ -123,4 +105,6 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir issues com suges
 
 ## Licença
 
-[Sua Licença] (Se aplicável)
+Este projeto é protegido por direitos autorais. Você **não tem permissão** para usar, copiar, modificar, distribuir ou utilizar comercialmente este código sem autorização expressa do autor.
+
+Todos os direitos reservados © Guilherme, 2025.
