@@ -1,3 +1,4 @@
+// src/app/api/chat/route.tsx
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Certifique-se de que a chave de API está configurada no .env

@@ -1,3 +1,4 @@
+// src/app/api/ask-chat/route.tsx
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { GoogleGenerativeAI, GoogleGenerativeAIError } from '@google/generative-ai';
 
@@ -33,17 +34,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       const parsed = JSON.parse(text);
-      res.status(200).json(parsed);
+      return new Response(JSON.stringify(parsed), { status: 200 });
     } catch (err) {
       console.error('Erro ao interpretar resposta da IA:', err);
-      res.status(500).json({ error: 'Erro ao interpretar filtros da IA.', respostaBruta: text });
+      return new Response(JSON.stringify({ error: 'Erro ao interpretar filtros da IA.', respostaBruta: text }), { status: 500 });
     }
   } catch (error) {
     console.error('Erro ao processar a requisição:', error);
-    if (error instanceof GoogleGenerativeAIError && error.status) {
-      // Se o erro for específico da API do Google, retorne o status e a mensagem
-      return res.status(error.status || 500).json({ error: `Erro na API do Google: ${error.message}` });
+    if (error instanceof GoogleGenerativeAIError) {
+      // Se o erro for específico da API do Google, retorne a mensagem de erro
+      return new Response(JSON.stringify({ error: `Erro na API do Google: ${error.message}` }), { status: 500 });
     }
-    res.status(500).json({ error: 'Erro ao processar a requisição com a IA.' });
+    return new Response(JSON.stringify({ error: 'Erro ao processar a requisição com a IA.' }), { status: 500 });
   }
 }
