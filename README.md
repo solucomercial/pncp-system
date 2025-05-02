@@ -18,8 +18,8 @@ Este projeto consiste em uma API desenvolvida com Next.js que utiliza o modelo G
 
 1.  **Clone o repositório (se aplicável):**
     ```bash
-    git clone [https://docs.github.com/articles/referencing-and-citing-content](https://docs.github.com/articles/referencing-and-citing-content)
-    cd [nome do seu repositório]
+    git clone https://github.com/gui1416/cap-licita.git
+    cd cap-licita
     ```
 
 2.  **Instale as dependências:**
@@ -33,11 +33,11 @@ Este projeto consiste em uma API desenvolvida com Next.js que utiliza o modelo G
 
 3.  **Configure as variáveis de ambiente:**
     * Crie um arquivo `.env.local` na raiz do seu projeto (se ainda não existir).
-    * Adicione sua chave de API do Google Gemini a este arquivo:
+    * Adicione sua chave de API do Google Gemini e seu Token do ConLicitação a este arquivo:
         ```
         GOOGLE_API_KEY=SUA_CHAVE_DE_API_GEMINI
+        CONLICITACAO_AUTH_TOKEN=SEU_TOKEN_DO_CONLICITACAO
         ```
-        **Importante:** Não commite o arquivo `.env.local` em repositórios públicos por questões de segurança.
 
 ## Funcionalidades
 
