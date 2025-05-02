@@ -2,6 +2,12 @@
 
 Este projeto consiste em uma API desenvolvida com Next.js que utiliza o modelo Gemini da Google para extrair informações relevantes (palavras-chave, sinônimos, faixa de valores e estado) a partir de perguntas sobre licitações.
 
+## 🎥 Demonstração Visual
+
+![Demonstração da API em funcionamento](./assets/demo.gif)
+
+> A demonstração acima mostra a API recebendo uma pergunta sobre licitações e retornando filtros extraídos com o auxílio do modelo Gemini.
+
 ## Pré-requisitos
 
 * **Node.js e npm (ou yarn/pnpm):** Certifique-se de ter o Node.js instalado em sua máquina. O npm é geralmente instalado junto com o Node.js.
@@ -107,4 +113,4 @@ Contribuições são bem-vindas! Sinta-se à vontade para abrir issues com suges
 
 Este projeto é protegido por direitos autorais. Você **não tem permissão** para usar, copiar, modificar, distribuir ou utilizar comercialmente este código sem autorização expressa do autor.
 
-Todos os direitos reservados © Guilherme, 2025.
+Todos os direitos reservados © Guilherme Rabelo Machado, 2025.
