@@ -1,7 +1,7 @@
 // src/app/api/buscar-licitacoes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFilters, ExtractedFilters } from '@/lib/extractFilters';
-import { getFiltrosCliente, getDetalhesBoletim, handleApiError, ApiResponse } from '@/lib/conlicitacaApi';
+import { getFiltrosCliente, getDetalhesBoletim } from '@/lib/conlicitacaApi';
 // AxiosError não é mais necessário aqui diretamente
 // import { AxiosError } from 'axios';
 
@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     console.log(`✅ Detalhes do boletim ${boletimId} recebidos.`);
 
     // Etapa 5: Filtrar licitações por valor (se aplicável)
-    let licitacoesDoBoletim = boletimDetails.licitacoes || [];
+    const licitacoesDoBoletim = boletimDetails.licitacoes || [];
     let licitacoesFiltradas = licitacoesDoBoletim;
     const { valorMin, valorMax } = extractedInfo;
 

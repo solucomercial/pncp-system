@@ -1,6 +1,6 @@
 // src/app/api/boletim-id/[boletimId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDetalhesBoletim, handleApiError } from '@/lib/conlicitacaApi'; // Ajuste o caminho se necessário
+import { getDetalhesBoletim } from '@/lib/conlicitacaApi'; // Ajuste o caminho se necessário
 
 interface Params {
  params: {

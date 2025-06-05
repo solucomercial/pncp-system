@@ -4,6 +4,30 @@ import axios, { AxiosError } from 'axios';
 const BASE_URL = 'https://consultaonline.conlicitacao.com.br/api';
 const TOKEN = process.env.CONLICITACAO_AUTH_TOKEN;
 
+interface FiltroConlicitacao {
+ id: number;
+ descricao: string;
+ ultimo_boletim?: {
+  id: number;
+  datahora_fechamento?: string;
+  numero_edital?: string;
+ }
+}
+
+interface FiltrosClienteResponse {
+ filtros: FiltroConlicitacao[];
+}
+
+interface BoletimResumo {
+ id: number;
+ // adicione outros campos relevantes do boletim aqui
+}
+
+interface BoletimResponse {
+ boletins: BoletimResumo[];
+ // adicione outros campos de resposta se existirem
+}
+
 if (!TOKEN) {
  console.warn('⚠️ Token de autenticação da ConLicitação (CONLICITACAO_AUTH_TOKEN) não definido.');
 }
@@ -17,21 +41,22 @@ export const conlicitacaoApi = axios.create({
  timeout: 25000
 });
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
  success: boolean;
  data?: T;
  error?: string;
  status?: number;
 }
 
-export function handleApiError(error: any, defaultMessage: string): ApiResponse<never> {
+export function handleApiError(error: unknown, defaultMessage: string): ApiResponse<never> {
  let message = defaultMessage;
  let status = 500;
 
  if (axios.isAxiosError(error)) {
-  const axiosError = error as AxiosError<any>;
+  const axiosError = error as AxiosError<unknown>;
   status = axiosError.response?.status || 500;
-  const responseError = axiosError.response?.data?.error || axiosError.response?.data?.message;
+  const data = axiosError.response?.data as { error?: string; message?: string } | undefined;
+  const responseError = data?.error || data?.message;
   message = typeof responseError === 'string' ? responseError : axiosError.message || defaultMessage;
 
   console.error(`❌ ${defaultMessage} (Status: ${status})`);
@@ -60,7 +85,7 @@ export function handleApiError(error: any, defaultMessage: string): ApiResponse<
 }
 
 // Busca filtros disponíveis para o cliente
-export async function getFiltrosCliente(): Promise<ApiResponse<any>> {
+export async function getFiltrosCliente(): Promise<ApiResponse<FiltrosClienteResponse>> {
  try {
   console.log("📞 Chamando getFiltrosCliente...");
   const response = await conlicitacaoApi.get('/filtros');
@@ -77,7 +102,7 @@ export async function getFiltrosCliente(): Promise<ApiResponse<any>> {
   // --- FIM DA CORREÇÃO ---
 
   return { success: true, data: response.data, status: response.status };
- } catch (err: any) {
+ } catch (err: unknown) {
   return handleApiError(err, 'Erro ao buscar filtros do cliente');
  }
 }
@@ -88,7 +113,7 @@ export async function getBoletins(
  filtroId: number,
  page = 1,
  perPage = 10
-): Promise<ApiResponse<any>> {
+): Promise<ApiResponse<BoletimResponse>> {
  try {
   console.log(`📞 Chamando getBoletins para filtro ${filtroId}...`);
   const response = await conlicitacaoApi.get(
@@ -100,23 +125,23 @@ export async function getBoletins(
    return { success: false, error: `Resposta da API de boletins (filtro ${filtroId}) inválida.`, status: 500 };
   }
   return { success: true, data: response.data, status: response.status };
- } catch (err: any) {
+ } catch (err: unknown) {
   return handleApiError(err, `Erro ao buscar boletins do filtro ${filtroId}`);
  }
 }
 
 // Detalha um boletim específico (mantida)
-export async function getDetalhesBoletim(boletimId: number): Promise<ApiResponse<any>> {
+export async function getDetalhesBoletim(boletimId: number): Promise<ApiResponse<Record<string, unknown>>> {
  try {
   console.log(`📞 Chamando getDetalhesBoletim para boletim ${boletimId}...`);
   const response = await conlicitacaoApi.get(`/boletim/${boletimId}`);
   console.log(`✅ Sucesso ao buscar detalhes do boletim ${boletimId}.`);
-  if (!response.data || !response.data.boletim) {
+  if (!response.data || typeof response.data !== 'object' || response.data === null || !('boletim' in response.data)) {
    console.error(`❌ Estrutura inesperada na resposta de /boletim/${boletimId}:`, response.data);
    return { success: false, error: `Resposta da API de detalhes do boletim ${boletimId} inválida.`, status: 500 };
   }
   return { success: true, data: response.data, status: response.status };
- } catch (err: any) {
+ } catch (err: unknown) {
   return handleApiError(err, `Erro ao buscar detalhes do boletim ${boletimId}`);
  }
 }

@@ -44,6 +44,7 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
      - "valorMin": número representando o valor mínimo mencionado (ex: 500000). Se nenhum valor mínimo for explicitamente mencionado, retorne null. Extraia apenas números.
      - "valorMax": número representando o valor máximo mencionado (ex: 1000000). Se nenhum valor máximo for explicitamente mencionado, retorne null. Extraia apenas números.
      - "estado": string contendo a sigla de duas letras do estado brasileiro mencionado (ex: "SP", "RJ", "MG"). Se nenhum estado for mencionado ou não for possível identificar claramente, retorne null.
+     
 
      Exemplo de JSON esperado:
      {

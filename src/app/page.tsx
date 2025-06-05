@@ -5,11 +5,10 @@ import React, { useState } from "react"
 import { Search, MapPin, CalendarDays, Info, FileText, Download, AlertCircle, Building } from "lucide-react"
 import { Button } from "@/components/ui/button" // Ajuste o caminho se necessário
 import { Input } from "@/components/ui/input" // Ajuste o caminho se necessário
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card" // Ajuste o caminho se necessário
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card" // Ajuste o caminho se necessário
 import { Badge } from "@/components/ui/badge" // Ajuste o caminho se necessário
 import { Skeleton } from "@/components/ui/skeleton" // Ajuste o caminho se necessário
 import { Toaster, toast } from "sonner"
-import { Separator } from "@/components/ui/separator" // Ajuste o caminho se necessário
 
 // --- Interfaces (Definindo a estrutura dos dados esperados) ---
 
@@ -86,7 +85,7 @@ interface ResultadoBoletim {
 }
 
 // URL base para construir links de download do edital
-const DOWNLOAD_BASE_URL = "[https://consultaonline.conlicitacao.com.br](https://consultaonline.conlicitacao.com.br)";
+const DOWNLOAD_BASE_URL = "https://consultaonline.conlicitacao.com.br";
 // URL da nossa API backend Next.js
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes"; // Usando rota relativa
 
@@ -390,7 +389,7 @@ export default function Home() {
                             <details className="mb-4 group">
                               <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-800 list-none flex items-center">
                                 Mostrar Observações
-                                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 ml-1 group-open:rotate-180 transition-transform">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 ml-1 group-open:rotate-180 transition-transform">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                 </svg>
                               </summary>
@@ -476,7 +475,7 @@ export default function Home() {
                             <details className="group">
                               <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-800 list-none flex items-center">
                                 Mostrar Síntese
-                                <svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 ml-1 group-open:rotate-180 transition-transform">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 ml-1 group-open:rotate-180 transition-transform">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                 </svg>
                               </summary>

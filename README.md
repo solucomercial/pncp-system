@@ -18,8 +18,8 @@ Este projeto consiste em uma API desenvolvida com Next.js que utiliza o modelo G
 
 1.  **Clone o repositório (se aplicável):**
     ```bash
-    git clone https://github.com/gui1416/cap-licita.git
-    cd cap-licita
+    git clone https://github.com/gui1416/capture-system.git
+    cd capture-system
     ```
 
 2.  **Instale as dependências:**
