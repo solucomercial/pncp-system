@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState } from "react"
-import { Search, MapPin, CalendarDays, Info, FileText, Download, AlertCircle, Building, Newspaper } from "lucide-react"
+import { Search, MapPin, CalendarDays, FileText, Download, AlertCircle, Building, Newspaper, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -142,7 +142,6 @@ export default function Home() {
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
                       <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objeto || "Objeto não informado"}</h4>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 self-start md:self-auto">
-                        {/* **MELHORIA: Exibição da informação do boletim** */}
                         {licitacao.boletimInfo && (
                           <Badge variant="outline" className="whitespace-nowrap">
                             <Newspaper className="w-3.5 h-3.5 mr-1.5" />
@@ -159,8 +158,23 @@ export default function Home() {
                       <div className="flex items-start gap-2"><FileText className="w-4 h-4 mt-1" /><span><strong>Edital:</strong> {licitacao.edital ?? 'N/A'}</span></div>
                       <div className="flex items-start gap-2"><strong>Valor Estimado:</strong><span className="font-semibold text-green-700">{formatCurrency(licitacao.valor_estimado)}</span></div>
                     </div>
-                    {licitacao.documento?.[0]?.url && (
-                      <div className="flex justify-end mt-2">
+
+                    {/* START: Alteração para observações retráteis */}
+                    {licitacao.observacao && (
+                      <details className="group mt-3 text-sm">
+                        <summary className="flex items-center gap-2 cursor-pointer list-none font-medium text-gray-700 hover:text-gray-900 transition-colors">
+                          <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                          <span>Ver Observações</span>
+                        </summary>
+                        <div className="mt-2 pt-3 text-gray-600 whitespace-pre-wrap border-t border-gray-200">
+                          <p>{licitacao.observacao}</p>
+                        </div>
+                      </details>
+                    )}
+                    {/* END: Alteração para observações retráteis */}
+
+                    {(licitacao.documento && licitacao.documento.length > 0 && licitacao.documento[0].url) && (
+                      <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
                         <Button variant="outline" size="sm" asChild>
                           <a href={`${DOWNLOAD_BASE_URL}${licitacao.documento[0].url}`} target="_blank" rel="noopener noreferrer">
                             <Download className="w-4 h-4 mr-2" /> Download Edital
