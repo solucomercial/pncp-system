@@ -199,7 +199,7 @@ Pergunta do Usuário: "${question}"
     console.log("✅ Filtros extraídos e validados:", validatedResponse);
     return validatedResponse;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Erro em extractFilters:', error);
     if (error instanceof GoogleGenerativeAIError) {
       throw new Error(`Falha na comunicação com a IA Gemini: ${error.message}`);
