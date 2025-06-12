@@ -160,7 +160,7 @@ export default function Home() {
               <CardContent className="py-16 text-center">
                 <AlertCircle className="h-12 w-12 mx-auto text-gray-400" />
                 <h3 className="mt-4 text-lg font-medium text-gray-900">Nenhum resultado encontrado</h3>
-                <p className="mt-1 text-sm text-gray-500">Sua busca por "{lastSearchQuestion}" não retornou resultados.</p>
+                <p className="mt-1 text-sm text-gray-500">Sua busca por &quot;{lastSearchQuestion}&quot; não retornou resultados.</p>
               </CardContent>
             </Card>
           )
