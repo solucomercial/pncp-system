@@ -1,32 +1,14 @@
-// src/utils/conlicitacaoApi.ts
+// src/lib/conlicitacaApi.ts
 import axios, { AxiosError } from 'axios';
+import {
+ FiltrosClienteResponse,
+ BoletimResponse,
+ DetalhesBoletimResponse,
+ ApiResponse,
+} from './types';
 
 const BASE_URL = 'https://consultaonline.conlicitacao.com.br/api';
 const TOKEN = process.env.CONLICITACAO_AUTH_TOKEN;
-
-interface FiltroConlicitacao {
- id: number;
- descricao: string;
- ultimo_boletim?: {
-  id: number;
-  datahora_fechamento?: string;
-  numero_edital?: string;
- }
-}
-
-interface FiltrosClienteResponse {
- filtros: FiltroConlicitacao[];
-}
-
-interface BoletimResumo {
- id: number;
- // adicione outros campos relevantes do boletim aqui
-}
-
-interface BoletimResponse {
- boletins: BoletimResumo[];
- // adicione outros campos de resposta se existirem
-}
 
 if (!TOKEN) {
  console.warn('⚠️ Token de autenticação da ConLicitação (CONLICITACAO_AUTH_TOKEN) não definido.');
@@ -40,13 +22,6 @@ export const conlicitacaoApi = axios.create({
  },
  timeout: 25000
 });
-
-export interface ApiResponse<T = unknown> {
- success: boolean;
- data?: T;
- error?: string;
- status?: number;
-}
 
 export function handleApiError(error: unknown, defaultMessage: string): ApiResponse<never> {
  let message = defaultMessage;
@@ -91,15 +66,11 @@ export async function getFiltrosCliente(): Promise<ApiResponse<FiltrosClienteRes
   const response = await conlicitacaoApi.get('/filtros');
   console.log("✅ Sucesso ao buscar filtros.");
 
-  // --- CORREÇÃO DA VALIDAÇÃO ---
-  // Verifica se a resposta tem 'data' e se 'data.filtros' é um array
   if (!response.data || !Array.isArray(response.data.filtros)) {
    console.error("❌ Estrutura inesperada na resposta de /filtros (esperado data.filtros como array):", response.data);
-   // Mantém o log original para depuração
    console.error("   Resposta completa original:", JSON.stringify(response.data, null, 2));
    return { success: false, error: "Resposta da API de filtros inválida (estrutura inesperada).", status: 500 };
   }
-  // --- FIM DA CORREÇÃO ---
 
   return { success: true, data: response.data, status: response.status };
  } catch (err: unknown) {
@@ -108,7 +79,7 @@ export async function getFiltrosCliente(): Promise<ApiResponse<FiltrosClienteRes
 }
 
 
-// Lista boletins de um filtro específico (mantida)
+// Lista boletins de um filtro específico
 export async function getBoletins(
  filtroId: number,
  page = 1,
@@ -130,17 +101,18 @@ export async function getBoletins(
  }
 }
 
-// Detalha um boletim específico (mantida)
-export async function getDetalhesBoletim(boletimId: number): Promise<ApiResponse<Record<string, unknown>>> {
+// Detalha um boletim específico
+export async function getDetalhesBoletim(boletimId: number): Promise<ApiResponse<DetalhesBoletimResponse>> {
  try {
   console.log(`📞 Chamando getDetalhesBoletim para boletim ${boletimId}...`);
   const response = await conlicitacaoApi.get(`/boletim/${boletimId}`);
   console.log(`✅ Sucesso ao buscar detalhes do boletim ${boletimId}.`);
-  if (!response.data || typeof response.data !== 'object' || response.data === null || !('boletim' in response.data)) {
-   console.error(`❌ Estrutura inesperada na resposta de /boletim/${boletimId}:`, response.data);
+  const responseData = response.data as DetalhesBoletimResponse;
+  if (!responseData || typeof responseData !== 'object' || responseData === null || !('boletim' in responseData)) {
+   console.error(`❌ Estrutura inesperada na resposta de /boletim/${boletimId}:`, responseData);
    return { success: false, error: `Resposta da API de detalhes do boletim ${boletimId} inválida.`, status: 500 };
   }
-  return { success: true, data: response.data, status: response.status };
+  return { success: true, data: responseData, status: response.status };
  } catch (err: unknown) {
   return handleApiError(err, `Erro ao buscar detalhes do boletim ${boletimId}`);
  }

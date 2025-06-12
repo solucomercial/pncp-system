@@ -9,39 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster, toast } from "sonner"
-
-// --- Interfaces com a nova estrutura ---
-
-interface Orgao {
-  nome: string;
-  cidade: string;
-  uf: string;
-}
-
-interface Documento {
-  filename: string;
-  url: string;
-}
-
-interface BoletimInfo {
-  id: number;
-  data: string;
-}
-
-interface Licitacao {
-  id: number;
-  orgao: Orgao | null;
-  objeto: string | null;
-  situacao: string | null;
-  datahora_abertura: string | null;
-  datahora_prazo: string | null;
-  edital: string | null;
-  documento: Documento[] | null;
-  processo: string | null;
-  observacao: string | null;
-  valor_estimado: number | null;
-  boletimInfo: BoletimInfo; // Informação do boletim de origem
-}
+import { type LicitacaoComBoletim as Licitacao } from "@/lib/types"
 
 const DOWNLOAD_BASE_URL = "https://consultaonline.conlicitacao.com.br";
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
@@ -76,8 +44,9 @@ export default function Home() {
       if (!data.resultados?.length) {
         toast.info("Nenhuma licitação encontrada para os critérios informados.");
       }
-    } catch (error: any) {
-      toast.error("Erro na busca", { description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
+      toast.error("Erro na busca", { description: message });
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +128,6 @@ export default function Home() {
                       <div className="flex items-start gap-2"><strong>Valor Estimado:</strong><span className="font-semibold text-green-700">{formatCurrency(licitacao.valor_estimado)}</span></div>
                     </div>
 
-                    {/* START: Alteração para observações retráteis */}
                     {licitacao.observacao && (
                       <details className="group mt-3 text-sm">
                         <summary className="flex items-center gap-2 cursor-pointer list-none font-medium text-gray-700 hover:text-gray-900 transition-colors">
@@ -171,7 +139,6 @@ export default function Home() {
                         </div>
                       </details>
                     )}
-                    {/* END: Alteração para observações retráteis */}
 
                     {(licitacao.documento && licitacao.documento.length > 0 && licitacao.documento[0].url) && (
                       <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">

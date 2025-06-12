@@ -1,6 +1,6 @@
 // src/app/api/boletim-id/[boletimId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDetalhesBoletim } from '@/lib/conlicitacaApi'; // Ajuste o caminho se necessário
+import { getDetalhesBoletim } from '@/lib/conlicitacaApi';
 
 interface Params {
  params: {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Params) {
  console.log(`📞 Rota API: Buscando detalhes para Boletim ID: ${idNumerico}`);
 
  try {
-  const response = await getDetalhesBoletim(idNumerico); // Usa a função do util
+  const response = await getDetalhesBoletim(idNumerico);
 
   if (!response.success) {
    console.error(`❌ Erro ao buscar detalhes do boletim ${idNumerico} via rota API:`, response.error);
@@ -30,11 +30,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 
   console.log(`✅ Rota API: Detalhes do boletim ${idNumerico} encontrados.`);
-  // Retorna diretamente os dados obtidos pela função utilitária
   return NextResponse.json(response.data, { status: 200 });
 
- } catch (error: any) {
-  // Captura erros inesperados na própria rota
+ } catch (error: unknown) {
   console.error(`❌ Erro inesperado na rota /api/boletim-id/${boletimId}:`, error);
   return NextResponse.json({ error: 'Erro interno do servidor ao processar a requisição do boletim.' }, { status: 500 });
  }
@@ -43,7 +41,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 // Handler OPTIONS para CORS Preflight (se necessário acessar esta rota diretamente do frontend)
 export async function OPTIONS(req: NextRequest) {
  const origin = req.headers.get('origin');
- const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', '[https://kzmopug2zuivuibmmes7.lite.vusercontent.net](https://kzmopug2zuivuibmmes7.lite.vusercontent.net)'];
+ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'https://kzmopug2zuivuibmmes7.lite.vusercontent.net'];
  const headers = new Headers();
 
  if (origin && allowedOrigins.includes(origin)) {

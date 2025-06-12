@@ -2,39 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractFilters } from '@/lib/extractFilters';
 import { getFiltrosCliente, getBoletins, getDetalhesBoletim } from '@/lib/conlicitacaApi';
+import { LicitacaoComBoletim, BoletimResumo, FiltroConlicitacao as ApiFilter } from '@/lib/types';
 
-// Tipagem para os dados que esperamos da API
-interface ApiFilter {
-  id: number;
-  descricao: string;
-  ultimo_boletim?: { id: number };
-}
-interface BoletimResumo {
-  id: number;
-  datahora_fechamento: string;
-}
-interface Orgao {
-  uf?: string;
-  // outros campos do orgao...
-}
-// **CORREÇÃO: Interface expandida para incluir todos os campos da licitação**
-interface LicitacaoComBoletim {
-  id: number;
-  orgao?: Orgao;
-  objeto?: string;
-  situacao?: string;
-  datahora_abertura?: string;
-  datahora_prazo?: string;
-  edital?: string;
-  documento?: any[];
-  processo?: string;
-  observacao?: string;
-  valor_estimado?: number;
-  boletimInfo: {
-    id: number;
-    data: string;
-  };
-}
 
 // --- Rate Limiting (Mantido) ---
 const RATE_LIMIT_WINDOW = 60 * 1000;
@@ -54,7 +23,7 @@ function checkRateLimit(ip: string): boolean {
 
 // --- Handler POST ---
 export async function POST(req: NextRequest) {
-  const ip = req.ip ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (!checkRateLimit(ip)) {
     return NextResponse.json({ error: 'Limite de requisições excedido' }, { status: 429 });
   }
@@ -63,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     question = body.question;
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 });
   }
 
@@ -114,10 +83,9 @@ export async function POST(req: NextRequest) {
     const allLicitacoesMap = new Map<number, LicitacaoComBoletim>();
     boletimDetailsResults.forEach(res => {
       if (res.success && res.data?.boletim && res.data.licitacoes) {
-        const { id, datahora_fechamento } = res.data.boletim as { id: number, datahora_fechamento: string };
-        (res.data.licitacoes as any[]).forEach(lic => {
+        const { id, datahora_fechamento } = res.data.boletim;
+        res.data.licitacoes.forEach(lic => {
           if (!allLicitacoesMap.has(lic.id)) {
-            // A tipagem completa garante que todos os campos de 'lic' sejam mantidos
             allLicitacoesMap.set(lic.id, { ...lic, boletimInfo: { id, data: datahora_fechamento } });
           }
         });
@@ -148,9 +116,10 @@ export async function POST(req: NextRequest) {
     console.log(`✅ Requisição processada. Enviando ${licitacoesFiltradas.length} licitações filtradas.`);
     return NextResponse.json({ resultados: licitacoesFiltradas }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`❌ Erro crítico ao processar requisição:`, error);
-    return NextResponse.json({ error: 'Erro interno do servidor', message: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: 'Erro interno do servidor', message }, { status: 500 });
   }
 }
 
