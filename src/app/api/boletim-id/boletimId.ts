@@ -1,6 +1,6 @@
 // src/app/api/boletim-id/[boletimId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDetalhesBoletim } from '@/lib/conlicitacaApi';
+import { getDetalhesBoletim } from '@/lib/comprasApi';
 
 interface Params {
  params: {
