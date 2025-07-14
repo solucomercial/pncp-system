@@ -71,8 +71,8 @@ export async function buscarLicitacoesComprasGov(
   if (!filters.dataInicial || !filters.dataFinal) {
    return { success: false, error: "As datas inicial e final são obrigatórias para esta busca.", status: 400 };
   }
-  params.dataPublicacaoPncpInicial = filters.dataInicial;
-  params.dataPublicacaoPncpFinal = filters.dataFinal;
+  params.inicio = filters.dataInicial;
+  params.fim = filters.dataFinal;
 
   if (filters.estado) {
    params.unidadeOrgaoUfSigla = filters.estado;

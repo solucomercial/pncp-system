@@ -52,7 +52,7 @@ export async function extractFilters(question: string): Promise<ExtractedFilters
   // 1. Adicionada regra explícita para "últimos X dias".
   const prompt = `
 <MISSION>
-Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil para a empresa "Soluções Serviços Terceirizados Ltda". Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
+Você é um assistente de IA altamente especializado, focado em analisar perguntas sobre licitações públicas no Brasil. Sua única função é extrair informações da pergunta do usuário e convertê-las em um objeto JSON estrito, sem qualquer texto, explicação ou markdown adicional.
 </MISSION>
 
 <CONTEXT>
