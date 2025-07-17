@@ -1,4 +1,3 @@
-
 export interface OrgaoCompras {
  nomeOrgaoEntidade: string;
  nomeUnidadeOrgao: string;
@@ -34,6 +33,20 @@ export interface ComprasLicitacao {
  dataEncerramentoPropostaPncp?: string;
  processo?: string;
  informacaoComplementar?: string;
+}
+
+// Nova interface para detalhes do Contrato baseada no exemplo do PDF e documentação da API
+export interface ComprasContrato {
+ idContrato: string;
+ uasg: number;
+ numeroProcesso: string;
+ fornecedor: {
+  cnpj: string;
+  nome: string;
+ };
+ valorTotalContratado: number;
+ dataAssinatura: string;
+ dataHoraAtualizacao: string;
 }
 
 export interface ApiResponse<T = unknown> {
