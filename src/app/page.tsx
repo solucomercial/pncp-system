@@ -1,21 +1,22 @@
+// src/app/page.tsx
 
 "use client"
 
 import React, { useState } from "react"
-import { Search, MapPin, CalendarDays, FileText, Download, AlertCircle, Building, Newspaper, ChevronDown } from "lucide-react"
+import { Search, MapPin, CalendarDays, FileText, Download, AlertCircle, Building, Newspaper } from "lucide-react" // Removi ChevronDown
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster, toast } from "sonner"
-import { type ComprasLicitacao as Licitacao } from "@/lib/types"
+import { type VwFtContrato as Contrato } from "@/lib/types" // Mudar para Contrato (VwFtContrato)
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
 export default function Home() {
   const [question, setQuestion] = useState("")
-  const [resultados, setResultados] = useState<Licitacao[]>([])
+  const [resultados, setResultados] = useState<Contrato[]>([]) // Mudar o tipo para Contrato[]
   const [isLoading, setIsLoading] = useState(false)
   const [lastSearchQuestion, setLastSearchQuestion] = useState<string | null>(null);
 
@@ -44,7 +45,7 @@ export default function Home() {
 
       setResultados(data.resultados || []);
       if (!data.resultados?.length) {
-        toast.info("Nenhuma licitação encontrada para os critérios informados.");
+        toast.info("Nenhum contrato encontrado para os critérios informados.");
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
@@ -66,10 +67,11 @@ export default function Home() {
 
   const formatDateOnly = (d: string | null | undefined) => d ? new Date(d).toLocaleDateString("pt-BR", { timeZone: 'UTC' }) : "Não informado";
 
+  // Ajustar o nome do parâmetro para situacaoAviso do contrato
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
     const status = s?.toUpperCase() || '';
     if (["CANCELADA", "FRACASSADA", "DESERTA", "REVOGADA", "ANULADA"].includes(status)) return "destructive";
-    if (["HOMOLOGADO", "CONCLUIDO", "DIVULGADO"].includes(status)) return "default";
+    if (["HOMOLOGADO", "CONCLUIDO", "DIVULGADO", "HOMOLOGADO"].includes(status)) return "default"; // Adicionei HOMOLOGADO
     return "secondary";
   };
 
@@ -77,8 +79,8 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="container mx-auto py-4 px-4">
-          <h1 className="text-2xl font-bold text-gray-800">Licitações IA</h1>
-          <p className="text-sm text-gray-500">Busca inteligente e abrangente em licitações públicas do Governo Federal</p>
+          <h1 className="text-2xl font-bold text-gray-800">Contratos IA</h1> {/* Mudei o título */}
+          <p className="text-sm text-gray-500">Busca inteligente e abrangente em contratos públicos do Governo Federal</p> {/* Mudei a descrição */}
         </div>
       </header>
 
@@ -92,7 +94,7 @@ export default function Home() {
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Busque por licitações de limpeza em SP nos últimos 7 dias..."
+                  placeholder="Busque por contratos de limpeza em SP nos últimos 7 dias..." // Mudei o placeholder
                   className="pl-10 h-11"
                   disabled={isLoading}
                 />
@@ -112,45 +114,46 @@ export default function Home() {
         ) : resultados.length > 0 ? (
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Resultados da Busca ({resultados.length} licitações encontradas)</CardTitle>
+              <CardTitle>Resultados da Busca ({resultados.length} contratos encontrados)</CardTitle> {/* Mudei o título */}
             </CardHeader>
             <CardContent>
               <ul className="space-y-6">
-                {resultados.map((licitacao) => (
-                  <li key={licitacao.idCompra} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                {resultados.map((contrato) => ( // Mudei para contrato
+                  <li key={contrato.idCompra || contrato.numeroContrato} className="border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"> {/* Usar idCompra ou numeroContrato como chave */}
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
-                      {/* Objeto da licitação */}
-                      <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4>
+                      {/* Objeto do contrato */}
+                      <h4 className="font-semibold text-gray-800 flex-1">{contrato.objeto || "Objeto não informado"}</h4> {/* Usar objeto */}
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 self-start md:self-auto">
-                        {/* Modalidade da licitação */}
-                        {licitacao.modalidadeNome && (
+                        {/* Modalidade do contrato */}
+                        {contrato.nome_modalidade && ( // Usar nome_modalidade
                           <Badge variant="outline" className="whitespace-nowrap">
                             <FileText className="w-3.5 h-3.5 mr-1.5" />
-                            {licitacao.modalidadeNome}
+                            {contrato.nome_modalidade}
                           </Badge>
                         )}
-                        <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNomePncp)} className="capitalize">{licitacao.situacaoCompraNomePncp?.toLowerCase() ?? 'n/a'}</Badge>
+                        <Badge variant={getSituacaoBadgeVariant(contrato.situacao_aviso)} className="capitalize">{contrato.situacao_aviso?.toLowerCase() ?? 'n/a'}</Badge> {/* Usar situacao_aviso */}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 mb-4">
-                      <div className="flex items-start gap-2"><Building className="w-4 h-4 mt-1" /><span><strong>Órgão:</strong> {licitacao.orgaoEntidadeRazaoSocial ?? 'N/A'}</span></div>
-                      <div className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-1" /><span><strong>Local:</strong> {`${licitacao.unidadeOrgaoMunicipioNome ?? 'N/A'} / ${licitacao.unidadeOrgaoUfSigla ?? 'N/A'}`}</span></div>
-                      <div className="flex items-start gap-2"><CalendarDays className="w-4 h-4 mt-1" /><span><strong>Publicação:</strong> {formatGenericDateTime(licitacao.dataPublicacaoPncp)}</span></div>
+                      {/* Órgão e Unidade Gestora */}
+                      <div className="flex items-start gap-2"><Building className="w-4 h-4 mt-1" /><span><strong>Órgão:</strong> {contrato.nomeOrgao ?? 'N/A'}</span></div> {/* Usar nomeOrgao */}
+                      <div className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-1" /><span><strong>Local:</strong> {`${contrato.codigo_municipio_uasg ?? 'N/A'} / ${contrato.uasg ?? 'N/A'}`}</span></div> {/* Mapeamento de local para campos do contrato */}
+                      <div className="flex items-start gap-2"><CalendarDays className="w-4 h-4 mt-1" /><span><strong>Publicação:</strong> {formatDateOnly(contrato.data_publicacao)}</span></div> {/* Usar data_publicacao */}
                       <div className="flex items-start gap-2">
                         <strong>Valor:</strong>
                         <span className="font-semibold text-green-700">
-                          {formatCurrency(licitacao.valorTotalHomologado || licitacao.valorTotalEstimado)}
+                          {formatCurrency(contrato.valorGlobal ?? contrato.valor_estimado_total)} {/* Usar valorGlobal ou valor_estimado_total */}
                         </span>
                       </div>
-                      {licitacao.processo && (
-                        <div className="flex items-start gap-2"><Newspaper className="w-4 h-4 mt-1" /><span><strong>Processo:</strong> {licitacao.processo}</span></div>
+                      {contrato.numero_processo && ( // Usar numero_processo
+                        <div className="flex items-start gap-2"><Newspaper className="w-4 h-4 mt-1" /><span><strong>Processo:</strong> {contrato.numero_processo}</span></div>
                       )}
                     </div>
 
-                    {licitacao.numeroControlePNCP && (
+                    {contrato.idCompra && ( // Usar idCompra para o link
                       <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
                         <Button variant="outline" size="sm" asChild>
-                          <a href={`https://pncp.gov.br/app/editais/${licitacao.numeroControlePNCP}`} target="_blank" rel="noopener noreferrer">
+                          <a href={`https://pncp.gov.br/app/editais/${contrato.idCompra}`} target="_blank" rel="noopener noreferrer">
                             <FileText className="w-4 h-4 mr-2" /> Ver no PNCP
                           </a>
                         </Button>
@@ -162,7 +165,6 @@ export default function Home() {
             </CardContent>
           </Card>
         ) : (
-
           !isLoading && lastSearchQuestion && (
             <Card>
               <CardContent className="py-16 text-center">
