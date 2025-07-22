@@ -1,13 +1,16 @@
+// src/app/api/contratos-id/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getDetalhesContrato } from '@/lib/comprasApi';
 
-interface Params {
- params: {
-  idContrato: string;
- };
-}
+// Remova esta interface, pois não será mais usada
+// interface Params {
+//  params: {
+//   idContrato: string;
+//  };
+// }
 
-export async function GET(req: NextRequest, { params }: Params) {
+// Tipagem direta do segundo argumento conforme o Next.js espera
+export async function GET(req: NextRequest, { params }: { params: { idContrato: string } }) {
  const { idContrato } = params;
 
  if (!idContrato) {
