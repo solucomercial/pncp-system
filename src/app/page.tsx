@@ -127,7 +127,7 @@ export default function Home() {
                             {contrato.tipoContrato.Nome}
                           </Badge>
                         )}
-                        <Badge variant={getSituacaoBadgeVariant(contrato.situacaoCompraNome)} className="capitalize">{contrato.situacaoCompraNome?.toLowerCase() ?? 'n/a'}</Badge>
+                        <Badge variant={getSituacaoBadgeVariant(contrato.tipoContrato.Nome)} className="capitalize">{contrato.tipoContrato.Nome?.toLowerCase() ?? 'n/a'}</Badge>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm text-gray-600 mb-4">
