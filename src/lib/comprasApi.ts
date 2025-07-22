@@ -1,12 +1,12 @@
 // src/lib/comprasApi.ts
 import axios, { AxiosError } from 'axios';
-import { ApiResponse, ComprasLicitacao, VwFtContrato, ContratosApiResponse, PncpContrato, PncpContratosApiResponse } from './types'; // Importe os novos tipos
+import { ApiResponse, ComprasLicitacao, VwFtContrato, PncpContratosApiResponse } from './types'; // 'ContratosApiResponse' e 'PncpContrato' removidos ou já estavam ok
 import { ExtractedFilters } from './extractFilters';
-import { format } from 'date-fns'; // Importe format para formatar datas
+import { format } from 'date-fns';
 
-const BASE_URL = 'https://dadosabertos.compras.gov.br'; // Base para buscarLicitacoesComprasGov (API Compras)
-const CONTRATOS_API_URL = 'https://api.compras.dados.gov.br'; // URL base para a API de contratos (API Compras)
-const PNCP_CONSULTA_API_URL = 'https://pncp.gov.br/api/consulta'; // Nova URL base para a API de Consultas do PNCP
+const BASE_URL = 'https://dadosabertos.compras.gov.br';
+const CONTRATOS_API_URL = 'https://api.compras.dados.gov.br';
+const PNCP_CONSULTA_API_URL = 'https://pncp.gov.br/api/consulta';
 
 export const comprasApi = axios.create({
  baseURL: BASE_URL,
@@ -24,17 +24,15 @@ export const contratosApi = axios.create({
  timeout: 30000,
 });
 
-// Nova instância Axios para a API de Consultas do PNCP
 export const pncpApi = axios.create({
  baseURL: PNCP_CONSULTA_API_URL,
  headers: {
-  'Accept': '*/*', // Conforme exemplos cURL nos manuais do PNCP
+  'Accept': '*/*',
  },
  timeout: 30000,
 });
 
 export function handleApiError(error: unknown, defaultMessage: string): ApiResponse<never> {
- // ... (código existente) ...
  let message = defaultMessage;
  let status = 500;
 
@@ -68,7 +66,6 @@ export function handleApiError(error: unknown, defaultMessage: string): ApiRespo
  return { success: false, error: message, status: status };
 }
 
-// Função auxiliar para mapear nomes de modalidades para códigos do PNCP
 function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
  const modalidadesMap: { [key: string]: number } = {
   "leilão eletrônico": 1,
@@ -85,52 +82,47 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
   "credenciamento": 12,
   "leilão presencial": 13,
  };
- // Normalize o nome da modalidade (ex: "Pregão Eletrônico" -> "pregão eletrônico")
  const normalizedName = modalidadeNome.toLowerCase().replace(/á/g, 'a').replace(/õ/g, 'o').replace(/ç/g, 'c');
  return modalidadesMap[normalizedName];
 }
 
-
-// Função para buscar contratos na API de Consultas do PNCP
 export async function buscarContratosPNCP(
  filters: ExtractedFilters,
  page = 1,
- perPage = 500 // Padrão da API de Consultas do PNCP é 500
-): Promise<ApiResponse<PncpContratosApiResponse>> { // O retorno agora é PncpContratosApiResponse
+ perPage = 500
+): Promise<ApiResponse<PncpContratosApiResponse>> {
  try {
   console.log(`📞 Chamando buscarContratosPNCP com filtros:`, filters);
 
-  const params: Record<string, any> = {
+  const params: Record<string, unknown> = { // Alterado de 'any' para 'unknown'
    pagina: page,
-   tamanhoPagina: perPage, // Usará 500 agora
+   tamanhoPagina: perPage,
   };
 
-  // As datas precisam estar no formato AAAAMMDD para a API de Consultas do PNCP
   if (!filters.dataInicial || !filters.dataFinal) {
    return { success: false, error: "As datas inicial e final são obrigatórias para esta busca de contratos.", status: 400 };
   }
   params.dataInicial = format(new Date(filters.dataInicial), 'yyyyMMdd');
   params.dataFinal = format(new Date(filters.dataFinal), 'yyyyMMdd');
 
-
   if (filters.estado) {
-   params.uf = filters.estado; // Parâmetro UF para a API de contratos PNCP
+   params.uf = filters.estado;
   }
   if (filters.modalidade) {
    const codigoModalidade = getPncpModalidadeCodigo(filters.modalidade);
    if (codigoModalidade !== undefined) {
-    params.codigoModalidadeContratacao = codigoModalidade; // Mapeamento para código numérico
+    params.codigoModalidadeContratacao = codigoModalidade;
    } else {
     console.warn(`⚠️ Modalidade "${filters.modalidade}" não mapeada para um código do PNCP. Ignorando filtro de modalidade.`);
    }
   }
 
-  const endpoint = '/v1/contratos'; // Endpoint da API de Consultas do PNCP para contratos
+  const endpoint = '/v1/contratos';
 
   const response = await pncpApi.get<PncpContratosApiResponse>(endpoint, { params });
   console.log(`✅ Sucesso ao buscar contratos do PNCP.`);
 
-  if (!response.data || !Array.isArray(response.data.data)) { // A resposta do PNCP tem os dados em 'data'
+  if (!response.data || !Array.isArray(response.data.data)) {
    console.error("❌ Estrutura inesperada na resposta da API PNCP (Contratos):", response.data);
    return { success: false, error: "Resposta da API PNCP inválida (estrutura inesperada).", status: 500 };
   }
@@ -141,9 +133,7 @@ export async function buscarContratosPNCP(
  }
 }
 
-// Mantendo outras funções que podem ser usadas para API Compras original
 export async function getDetalhesLicitacao(boletimId: number): Promise<ApiResponse<ComprasLicitacao>> {
- // ... (código existente, sem alterações) ...
  try {
   console.log(`📞 Chamando getDetalhesLicitacao para boletim ${boletimId}...`);
   const response = await comprasApi.get(`/boletim/${boletimId}`);
@@ -160,7 +150,6 @@ export async function getDetalhesLicitacao(boletimId: number): Promise<ApiRespon
 }
 
 export async function getDetalhesContrato(idContrato: string): Promise<ApiResponse<VwFtContrato>> {
- // ... (código existente, sem alterações) ...
  try {
   console.log(`📞 Chamando getDetalhesContrato para contrato ${idContrato}...`);
   const response = await contratosApi.get<VwFtContrato>(`/comprasContratos/doc/contrato/${idContrato}`);
