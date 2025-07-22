@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDetalhesContrato } from '@/lib/comprasApi';
 
-export async function GET(request: NextRequest, { params }: { params: { idContrato: string } }) {
- const { idContrato } = params;
+export async function GET(request: NextRequest) {
+ // Extrai o idContrato da URL
+ const url = request.nextUrl;
+ const idContrato = url.pathname.split('/').pop();
 
  if (!idContrato) {
   return NextResponse.json({ error: 'ID do contrato ausente na URL.' }, { status: 400 });
