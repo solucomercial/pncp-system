@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDetalhesContrato } from '@/lib/comprasApi';
 
-export async function GET({ params }: { params: { idContrato: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { idContrato: string } }) {
  const { idContrato } = params;
 
  if (!idContrato) {
