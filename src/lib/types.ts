@@ -36,13 +36,12 @@ export interface ComprasLicitacao {
  informacaoComplementar?: string;
 }
 
-// Nova interface para contratos, baseada no schema VwFtContrato da documentação
 export interface VwFtContrato {
- idCompra: string; // Corresponde ao identificador da compra
+ idCompra: string;
  identificador: string;
  numero_processo: string;
  uasg: number;
- modalidade: number; // Código da modalidade
+ modalidade: number;
  nome_modalidade: string;
  numero_aviso: number;
  situacao_aviso: string;
@@ -54,16 +53,15 @@ export interface VwFtContrato {
  valor_estimado_total: number;
  valor_homologado_total: number;
  informacoes_gerais: string | null;
- objeto: string; // Objeto do contrato
+ objeto: string;
  endereco_entrega_edital: string | null;
  codigo_municipio_uasg: number | null;
- data_abertura_proposta: string; // Data de abertura de proposta
+ data_abertura_proposta: string;
  data_entrega_edital: string;
  data_entrega_proposta: string;
- data_publicacao: string; // Data de publicação
+ data_publicacao: string;
  dt_alteracao: string;
  pertence14133: boolean;
- // Campos adicionais do exemplo curl
  codigoOrgao?: string;
  nomeOrgao?: string;
  codigoUnidadeGestora?: string;
@@ -75,7 +73,7 @@ export interface VwFtContrato {
  codigoUnidadeRealizadoraCompra?: string;
  nomeUnidadeRealizadoraCompra?: string;
  numeroCompra?: string;
- codigoModalidadeCompra?: string; // String no exemplo curl, manter para compatibilidade
+ codigoModalidadeCompra?: string;
  codigoTipo?: string;
  nomeTipo?: string;
  codigoCategoria?: string;
@@ -85,9 +83,9 @@ export interface VwFtContrato {
  niFornecedor?: string;
  nomeRazaoSocialFornecedor?: string;
  processo?: string;
- dataVigenciaInicial?: string; // Data de vigência inicial
- dataVigenciaFinal?: string;   // Data de vigência final
- valorGlobal?: number;         // Valor global
+ dataVigenciaInicial?: string;
+ dataVigenciaFinal?: string;
+ valorGlobal?: number;
  numeroParcelas?: number;
  valorParcela?: number;
  valorAcumulado?: number;
@@ -99,6 +97,75 @@ export interface VwFtContrato {
  unidadesRequisitantes?: string;
 }
 
+// Interface para contratos da API de CONSULTAS do PNCP (/v1/contratos)
+export interface PncpContrato {
+ numeroControlePNCP: string;
+ numeroControlePNCPCompra: string;
+ numeroContratoEmpenho: string;
+ anoContrato: number;
+ sequencialContrato: number;
+ processo: string;
+ tipoContrato: {
+  Id: number;
+  Nome: string;
+ };
+ categoriaProcesso: {
+  Id: number;
+  Nome: string;
+ };
+ receita: boolean;
+ objetoContrato: string;
+ informacaoComplementar: string;
+ orgaoEntidade: {
+  cnpj: string;
+  razaoSocial: string;
+  poderId: string;
+  esferaId: string;
+ };
+ unidadeOrgao: {
+  codigoUnidade: string;
+  nomeUnidade: string;
+  municipioId: number;
+  municipioNome: string;
+  ufSigla: string;
+  ufNome: string;
+ };
+ orgaoSubRogado?: { // Opcional, pode não vir
+  cnpj: string;
+  razaoSocial: string;
+  poderId: string;
+  esferaId: string;
+ };
+ unidadeSubRogada?: { // Opcional, pode não vir
+  codigoUnidade: string;
+  nomeUnidade: string;
+  municipioId: number;
+  municipioNome: string;
+  ufSigla: string;
+  ufNome: string;
+ };
+ tipoPessoa: string;
+ niFornecedor: string;
+ nomeRazaoSocialFornecedor: string;
+ tipoPessoaSubContratada?: string; // Opcional
+ niFornecedorSubContratado?: string; // Opcional
+ nomeFornecedorSubContratado?: string; // Opcional
+ valorInicial: number;
+ numeroParcelas: number;
+ valorParcela: number;
+ valorGlobal: number;
+ valorAcumulado: number;
+ dataAssinatura: string;
+ dataVigenciaInicio: string;
+ dataVigenciaFim: string;
+ numeroRetificacao: number;
+ usuarioNome: string;
+ dataPublicacaoPncp: string; // Data e Hora
+ dataAtualizacao: string; // Data e Hora
+ identificadorCipi?: string; // Opcional
+ urlCipi?: string; // Opcional
+}
+
 export interface ApiResponse<T = unknown> {
  success: boolean;
  data?: T;
@@ -107,16 +174,18 @@ export interface ApiResponse<T = unknown> {
 }
 
 export interface ComprasApiResponse {
- resultado: ComprasLicitacao[]; // Esta interface ainda será usada, mas para outro endpoint
+ resultado: ComprasLicitacao[];
  totalRegistros: number;
  totalPaginas: number;
  paginasRestantes: number;
 }
 
-// Nova interface para a resposta da API de contratos
-export interface ContratosApiResponse {
- resultado: VwFtContrato[];
+// Resposta padrão da API de Consultas do PNCP
+export interface PncpContratosApiResponse {
+ data: PncpContrato[]; // Os dados dos registros encontrados
  totalRegistros: number;
  totalPaginas: number;
+ numeroPagina: number;
  paginasRestantes: number;
+ empty: boolean;
 }
