@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
+import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 
-// O tipo agora reflete a estrutura exata enviada pelo FilterSheet
 interface RequestBody {
   filters: Filters;
 }
@@ -12,40 +12,39 @@ export async function POST(request: Request) {
     const body: RequestBody = await request.json();
     const { filters } = body;
 
-    console.log("▶️ Rota da API recebendo filtros:", filters);
+    console.log("▶️ Rota da API recebendo filtros do frontend:", filters);
 
-    // --- BYPASS DO GEMINI ---
-    // Não há mais chamada para extractFilters. Os filtros são usados diretamente.
-
-    // Mapeia os filtros do frontend para o formato esperado pela função de busca
     const mappedFilters = {
       palavrasChave: filters.palavrasChave,
-      sinonimos: [], // Não estamos mais usando sinônimos do Gemini
       valorMin: filters.valorMin ? parseFloat(filters.valorMin) : null,
       valorMax: filters.valorMax ? parseFloat(filters.valorMax) : null,
       estado: filters.estado,
-      // Passa o array de modalidades diretamente
       modalidades: filters.modalidades,
-      dataInicial: filters.dateRange?.from ? filters.dateRange.from.toString() : null,
-      dataFinal: filters.dateRange?.to ? filters.dateRange.to.toString() : null,
+      dataInicial: filters.dateRange?.from ? new Date(filters.dateRange.from).toISOString() : null,
+      dataFinal: filters.dateRange?.to ? new Date(filters.dateRange.to).toISOString() : null,
       blacklist: filters.blacklist,
-      smartBlacklist: [] // Não estamos mais usando smartBlacklist do Gemini
     };
 
-    console.log("🔎 Mapeando para a função de busca com:", mappedFilters);
+    console.log("🔎 Buscando licitações no PNCP com filtros mapeados:", mappedFilters);
 
-    // Chama a função de busca com os filtros mapeados
     const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters);
 
-    if (!licitacoesResponse.success || !licitacoesResponse.data) {
+    if (!licitacoesResponse.success || !licitacoesResponse.data?.data) {
       throw new Error(licitacoesResponse.error || 'Falha ao buscar licitações no PNCP');
     }
 
-    const licitacoes = licitacoesResponse.data.data;
+    const licitacoesBrutas = licitacoesResponse.data.data;
+    console.log(`📡 Recebidas ${licitacoesBrutas.length} licitações brutas do PNCP.`);
 
-    console.log(`✅ Requisição processada. Enviando ${licitacoes.length} licitações.`);
+    if (licitacoesBrutas.length === 0) {
+      return NextResponse.json({ resultados: [] });
+    }
 
-    return NextResponse.json({ resultados: licitacoes });
+    const licitacoesViaveis = await analyzeAndFilterBids(licitacoesBrutas);
+
+    console.log(`✅ Processamento finalizado. Enviando ${licitacoesViaveis.length} licitações viáveis para o frontend.`);
+
+    return NextResponse.json({ resultados: licitacoesViaveis });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';

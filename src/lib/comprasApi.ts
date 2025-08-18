@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { ApiResponse, PncpLicitacao, PncpApiResponse } from './types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, subDays } from 'date-fns';
 
 export interface PncpApiFilters {
  palavrasChave: string[];
@@ -44,7 +44,6 @@ export function handleApiError(error: unknown, defaultMessage: string): ApiRespo
   } else if (status === 429) {
    message = `Limite de requisições excedido na API. Tente novamente mais tarde.`;
   }
-
  } else if (error instanceof Error) {
   message = error.message;
   console.error(`❌ ${defaultMessage} (Erro não-Axios):`, error);
@@ -57,18 +56,10 @@ export function handleApiError(error: unknown, defaultMessage: string): ApiRespo
 
 function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
  const modalidadesMap: { [key: string]: number } = {
-  "leilão eletrônico": 1,
-  "diálogo competitivo": 2,
-  "concurso": 3,
-  "concorrência eletrônica": 4,
-  "concorrência presencial": 5,
-  "pregão eletrônico": 6,
-  "pregão presencial": 7,
-  "dispensa de licitação": 8,
-  "inexigibilidade de licitação": 9,
-  "manifestação de interesse": 10,
-  "pré-qualificação": 11,
-  "credenciamento": 12,
+  "leilão eletrônico": 1, "diálogo competitivo": 2, "concurso": 3,
+  "concorrência eletrônica": 4, "concorrência presencial": 5, "pregão eletrônico": 6,
+  "pregão presencial": 7, "dispensa de licitação": 8, "inexigibilidade de licitação": 9,
+  "manifestação de interesse": 10, "pré-qualificação": 11, "credenciamento": 12,
   "leilão presencial": 13,
  };
  const normalizedName = modalidadeNome.toLowerCase().replace(" de licitação", "").trim();
@@ -86,8 +77,22 @@ export async function buscarLicitacoesPNCP(
 
   const baseParams: Record<string, unknown> = { tamanhoPagina: 50 };
 
-  if (filters.dataInicial) baseParams.dataInicial = format(parseISO(filters.dataInicial), 'yyyyMMdd');
-  if (filters.dataFinal) baseParams.dataFinal = format(parseISO(filters.dataFinal), 'yyyyMMdd');
+  // **CORREÇÃO: Altera o formato da data para yyyyMMdd**
+  if (filters.dataInicial && filters.dataFinal) {
+   let dataInicial = parseISO(filters.dataInicial);
+   const dataFinal = parseISO(filters.dataFinal);
+   if (differenceInDays(dataFinal, dataInicial) > 365) {
+    console.warn("⚠️ O período selecionado excede 365 dias. Ajustando a data inicial.");
+    dataInicial = subDays(dataFinal, 365);
+   }
+   baseParams.dataInicial = format(dataInicial, 'yyyyMMdd');
+   baseParams.dataFinal = format(dataFinal, 'yyyyMMdd');
+  } else if (filters.dataInicial) {
+   baseParams.dataInicial = format(parseISO(filters.dataInicial), 'yyyyMMdd');
+  } else if (filters.dataFinal) {
+   baseParams.dataFinal = format(parseISO(filters.dataFinal), 'yyyyMMdd');
+  }
+
   if (filters.estado) baseParams.uf = filters.estado;
   if (filters.valorMin) baseParams.valorMinimo = filters.valorMin;
   if (filters.valorMax) baseParams.valorMaximo = filters.valorMax;
@@ -98,10 +103,6 @@ export async function buscarLicitacoesPNCP(
   const modalidadesCodigos = filters.modalidades && filters.modalidades.length > 0
    ? filters.modalidades.map(getPncpModalidadeCodigo).filter((code): code is number => code !== undefined)
    : ALL_MODALITY_CODES;
-
-  if (modalidadesCodigos.length === 0 && filters.modalidades && filters.modalidades.length > 0) {
-   console.warn("Nenhum código de modalidade válido encontrado para:", filters.modalidades);
-  }
 
   for (const modalidadeCode of modalidadesCodigos) {
    let currentPage = 1;
@@ -114,13 +115,18 @@ export async function buscarLicitacoesPNCP(
      const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
      if (response.data && Array.isArray(response.data.data)) {
       allLicitacoes.push(...response.data.data);
-      if (currentPage === 1) {
+      if (currentPage === 1 && response.data.totalPaginas > 0) {
        totalPages = response.data.totalPaginas;
        console.log(`  -> Modalidade ${modalidadeCode}: ${response.data.totalRegistros} registros encontrados em ${totalPages} páginas.`);
+      } else if (currentPage === 1) {
+       console.log(`  -> Modalidade ${modalidadeCode}: Nenhum registro encontrado.`);
+       break;
       }
-     } else { break; }
+     } else {
+      break;
+     }
     } catch (err: unknown) {
-     handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}`);
+     handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}. Pulando para a próxima.`);
      break;
     }
     currentPage++;
@@ -137,7 +143,6 @@ export async function buscarLicitacoesPNCP(
    const objeto = licitacao.objetoCompra?.toLowerCase() || '';
    const temKeyword = lowercasedKeywords.length === 0 || lowercasedKeywords.some(kw => objeto.includes(kw));
    const temBlacklist = lowercasedBlacklist.length > 0 && lowercasedBlacklist.some(bl => objeto.includes(bl));
-
    return temKeyword && !temBlacklist;
   });
 
@@ -155,7 +160,6 @@ export async function buscarLicitacoesPNCP(
    },
    status: 200,
   };
-
  } catch (err: unknown) {
   return handleApiError(err, 'Erro geral ao buscar licitações na API PNCP');
  }
