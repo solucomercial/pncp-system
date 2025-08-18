@@ -72,7 +72,7 @@ export async function extractFilters(question: string, userBlacklist: string[] =
 
   const prompt = `
 <MISSION>
-Você é um assistente de IA altamente especializado em licitações públicas no Brasil. Sua função é converter a pergunta do usuário em um objeto JSON estrito, sem qualquer texto adicional.
+Você é um assistente de IA altamente especializado em licitações públicas no Brasil para a empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA portadora do CNPJ 09.445.502/0001-09. Sua função é converter a pergunta do usuário em um objeto JSON estrito, sem qualquer texto adicional.
 </MISSION>
 
 <CONTEXT>

@@ -1,34 +1,24 @@
 import axios, { AxiosError } from 'axios';
-import { ApiResponse, ComprasLicitacao, VwFtContrato, PncpLicitacao, PncpApiResponse } from './types';
-import { ExtractedFilters } from './extractFilters';
-import { format } from 'date-fns';
+import { ApiResponse, PncpLicitacao, PncpApiResponse } from './types';
+import { format, parseISO } from 'date-fns';
 
-const BASE_URL = 'https://dadosabertos.compras.gov.br';
-const CONTRATOS_API_URL = 'https://api.compras.dados.gov.br';
+export interface PncpApiFilters {
+ palavrasChave: string[];
+ valorMin: number | null;
+ valorMax: number | null;
+ estado: string | null;
+ modalidades: string[];
+ dataInicial: string | null;
+ dataFinal: string | null;
+ blacklist: string[];
+}
+
 const PNCP_CONSULTA_API_URL = 'https://pncp.gov.br/api/consulta';
-
-export const comprasApi = axios.create({
- baseURL: BASE_URL,
- headers: {
-  'Accept': 'application/json',
- },
- timeout: 30000,
-});
-
-export const contratosApi = axios.create({
- baseURL: CONTRATOS_API_URL,
- headers: {
-  'Accept': 'application/json',
- },
- timeout: 30000,
-});
 
 export const pncpApi = axios.create({
  baseURL: PNCP_CONSULTA_API_URL,
- headers: {
-  'Accept': '*/*',
- },
- timeout: 30000,
+ headers: { 'Accept': '*/*' },
+ timeout: 60000,
 });
 
 export function handleApiError(error: unknown, defaultMessage: string): ApiResponse<never> {
@@ -75,143 +65,98 @@ function getPncpModalidadeCodigo(modalidadeNome: string): number | undefined {
   "pregão eletrônico": 6,
   "pregão presencial": 7,
   "dispensa de licitação": 8,
-  "inexigibilidade": 9,
+  "inexigibilidade de licitação": 9,
   "manifestação de interesse": 10,
   "pré-qualificação": 11,
   "credenciamento": 12,
   "leilão presencial": 13,
  };
- const normalizedName = modalidadeNome.toLowerCase().replace(/á/g, 'a').replace(/õ/g, 'o').replace(/ç/g, 'c');
+ const normalizedName = modalidadeNome.toLowerCase().replace(" de licitação", "").trim();
  return modalidadesMap[normalizedName];
 }
 
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
-
-// Helper function para adicionar um atraso entre as requisições
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function buscarLicitacoesPNCP(
- filters: ExtractedFilters,
+ filters: PncpApiFilters,
 ): Promise<ApiResponse<PncpApiResponse<PncpLicitacao>>> {
  try {
-  console.log(`📞 Chamando buscarLicitacoesPNCP com filtros:`, filters);
+  console.log(`📞 Chamando buscarLicitacoesPNCP com filtros estruturados:`, filters);
 
-  const baseParams: Record<string, unknown> = {
-   tamanhoPagina: 50, // MODIFICAÇÃO: Alterado de 500 para 50 para corrigir o erro "Tamanho de página inválido".
-  };
+  const baseParams: Record<string, unknown> = { tamanhoPagina: 50 };
 
-  if (!filters.dataInicial || !filters.dataFinal) {
-   const today = new Date();
-   baseParams.dataInicial = format(today, 'yyyyMMdd');
-   baseParams.dataFinal = format(today, 'yyyyMMdd');
-   console.warn("⚠️ Data inicial ou final ausentes para buscar licitações. Usando a data de hoje como período padrão.");
-  } else {
-   baseParams.dataInicial = format(new Date(filters.dataInicial), 'yyyyMMdd');
-   baseParams.dataFinal = format(new Date(filters.dataFinal), 'yyyyMMdd');
-  }
-
-  if (filters.estado) {
-   baseParams.uf = filters.estado;
-  }
+  if (filters.dataInicial) baseParams.dataInicial = format(parseISO(filters.dataInicial), 'yyyyMMdd');
+  if (filters.dataFinal) baseParams.dataFinal = format(parseISO(filters.dataFinal), 'yyyyMMdd');
+  if (filters.estado) baseParams.uf = filters.estado;
+  if (filters.valorMin) baseParams.valorMinimo = filters.valorMin;
+  if (filters.valorMax) baseParams.valorMaximo = filters.valorMax;
 
   const endpoint = '/v1/contratacoes/publicacao';
   const allLicitacoes: PncpLicitacao[] = [];
-  let totalCombinedRecords = 0;
 
-  const modalidadesParaBuscar = filters.modalidade
-   ? ([getPncpModalidadeCodigo(filters.modalidade)].filter(Boolean) as number[])
+  const modalidadesCodigos = filters.modalidades && filters.modalidades.length > 0
+   ? filters.modalidades.map(getPncpModalidadeCodigo).filter((code): code is number => code !== undefined)
    : ALL_MODALITY_CODES;
 
-  for (const modalidadeCode of modalidadesParaBuscar) {
+  if (modalidadesCodigos.length === 0 && filters.modalidades && filters.modalidades.length > 0) {
+   console.warn("Nenhum código de modalidade válido encontrado para:", filters.modalidades);
+  }
+
+  for (const modalidadeCode of modalidadesCodigos) {
    let currentPage = 1;
    let totalPages = 1;
-
    console.log(`ℹ️ Buscando licitações para modalidade código: ${modalidadeCode}`);
 
    while (currentPage <= totalPages) {
-    const params = {
-     ...baseParams,
-     codigoModalidadeContratacao: modalidadeCode,
-     pagina: currentPage,
-    };
+    const params = { ...baseParams, codigoModalidadeContratacao: modalidadeCode, pagina: currentPage };
     try {
      const response = await pncpApi.get<PncpApiResponse<PncpLicitacao>>(endpoint, { params });
      if (response.data && Array.isArray(response.data.data)) {
       allLicitacoes.push(...response.data.data);
-
-      if (currentPage === 1 && response.data.totalRegistros > 0) {
-       totalCombinedRecords += response.data.totalRegistros;
+      if (currentPage === 1) {
        totalPages = response.data.totalPaginas;
        console.log(`  -> Modalidade ${modalidadeCode}: ${response.data.totalRegistros} registros encontrados em ${totalPages} páginas.`);
-      } else if (currentPage === 1) {
-       // Se não houver registros para esta modalidade, interrompe o loop de paginação para ela.
-       break;
       }
-     } else {
-      console.warn(`⚠️ Resposta inesperada para modalidade ${modalidadeCode}, página ${currentPage}. Prosseguindo...`, response.data);
-      break; // Sai do loop da página atual em caso de erro
-     }
+     } else { break; }
     } catch (err: unknown) {
-     const errorResponse = handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}`);
-     console.warn(`⚠️ Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}. Prosseguindo...`, errorResponse.error);
-     break; // Sai do loop da página atual em caso de erro
+     handleApiError(err, `Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage}`);
+     break;
     }
     currentPage++;
    }
-   // MODIFICAÇÃO: Adiciona um atraso entre as buscas de cada modalidade para evitar o erro 429 (Too Many Requests).
    await delay(200);
   }
 
+  console.log(`✅ Busca na API PNCP concluída. Total de ${allLicitacoes.length} licitações brutas encontradas.`);
 
-  console.log(`✅ Sucesso ao buscar licitações (editais e avisos) do PNCP. Total de registros combinados: ${totalCombinedRecords}`);
+  const lowercasedKeywords = filters.palavrasChave.map(k => k.toLowerCase());
+  const lowercasedBlacklist = filters.blacklist.map(b => b.toLowerCase());
+
+  const finalResults = allLicitacoes.filter(licitacao => {
+   const objeto = licitacao.objetoCompra?.toLowerCase() || '';
+   const temKeyword = lowercasedKeywords.length === 0 || lowercasedKeywords.some(kw => objeto.includes(kw));
+   const temBlacklist = lowercasedBlacklist.length > 0 && lowercasedBlacklist.some(bl => objeto.includes(bl));
+
+   return temKeyword && !temBlacklist;
+  });
+
+  console.log(`🔍 Após filtragem por keywords e blacklist, restaram ${finalResults.length} licitações.`);
 
   return {
    success: true,
    data: {
-    data: allLicitacoes,
-    totalRegistros: totalCombinedRecords,
+    data: finalResults,
+    totalRegistros: finalResults.length,
     totalPaginas: 1,
     numeroPagina: 1,
     paginasRestantes: 0,
-    empty: allLicitacoes.length === 0,
+    empty: finalResults.length === 0,
    },
-   status: 200
+   status: 200,
   };
 
  } catch (err: unknown) {
   return handleApiError(err, 'Erro geral ao buscar licitações na API PNCP');
- }
-}
-
-
-export async function getDetalhesLicitacao(boletimId: number): Promise<ApiResponse<ComprasLicitacao>> {
- try {
-  console.log(`📞 Chamando getDetalhesLicitacao para boletim ${boletimId}...`);
-  const response = await comprasApi.get(`/boletim/${boletimId}`);
-  console.log(`✅ Sucesso ao buscar detalhes do boletim ${boletimId}.`);
-  const responseData = response.data as ComprasLicitacao;
-  if (!responseData || typeof responseData !== 'object' || responseData === null) {
-   console.error(`❌ Estrutura inesperada na resposta de /boletim/${boletimId}:`, responseData);
-   return { success: false, error: `Resposta da API de detalhes do boletim ${boletimId} inválida.`, status: 500 };
-  }
-  return { success: true, data: responseData, status: response.status };
- } catch (err: unknown) {
-  return handleApiError(err, `Erro ao buscar detalhes do boletim ${boletimId}`);
- }
-}
-
-export async function getDetalhesContrato(idContrato: string): Promise<ApiResponse<VwFtContrato>> {
- try {
-  console.log(`📞 Chamando getDetalhesContrato para contrato ${idContrato}...`);
-  const response = await contratosApi.get<VwFtContrato>(`/comprasContratos/doc/contrato/${idContrato}`);
-  console.log(`✅ Sucesso ao buscar detalhes do contrato ${idContrato}.`);
-
-  if (!response.data || typeof response.data !== 'object' || response.data === null) {
-   console.error(`❌ Estrutura inesperada na resposta da API de contratos para ${idContrato}:`, response.data);
-   return { success: false, error: `Resposta da API de detalhes do contrato ${idContrato} inválida.`, status: 500 };
-  }
-  return { success: true, data: response.data, status: response.status };
- } catch (err: unknown) {
-  return handleApiError(err, `Erro ao buscar detalhes do contrato ${idContrato}`);
  }
 }

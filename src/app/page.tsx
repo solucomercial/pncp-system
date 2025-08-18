@@ -19,7 +19,6 @@ import {
 import { FilterSheet, type Filters } from "@/components/FilterSheet"
 import { Toaster, toast } from "sonner"
 import { type PncpLicitacao as Licitacao } from "@/lib/types"
-import { format } from "date-fns"
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 const ITEMS_PER_PAGE = 100;
@@ -32,7 +31,6 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
 
-  // --- Funções de formatação ---
   const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
   const getSituacaoBadgeVariant = (s: string | null | undefined): "default" | "destructive" | "secondary" => {
@@ -42,15 +40,11 @@ export default function Home() {
     return "secondary";
   };
 
-  // Filtra os resultados locais com base no input de pesquisa
   const filteredResults = useMemo(() => {
     if (!searchTerm.trim()) return allResults;
-
     const lowercasedTerm = searchTerm.toLowerCase();
-
     return allResults.filter(licitacao => {
       const local = `${licitacao.unidadeOrgao?.municipioNome ?? ''} / ${licitacao.unidadeOrgao?.ufSigla ?? ''}`;
-
       return (
         licitacao.objetoCompra?.toLowerCase().includes(lowercasedTerm) ||
         licitacao.orgaoEntidade?.razaoSocial?.toLowerCase().includes(lowercasedTerm) ||
@@ -64,54 +58,21 @@ export default function Home() {
 
   const { paginatedResults, totalPages } = useMemo(() => {
     const total = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
-    const paginated = filteredResults.slice(
-      (currentPage - 1) * ITEMS_PER_PAGE,
-      currentPage * ITEMS_PER_PAGE
-    );
-    return { paginatedResults: paginated, totalPages: total };
+    return {
+      paginatedResults: filteredResults.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+      totalPages: total
+    };
   }, [filteredResults, currentPage]);
 
-
   const handleApplyFilters = async (filters: Filters) => {
-    console.log("Aplicando filtros:", filters);
+    console.log("Aplicando filtros do frontend:", filters);
     setIsLoading(true);
     setAllResults([]);
     setCurrentPage(1);
     setHasSearched(true);
     setSearchTerm("");
 
-    // CORREÇÃO: Alterado de 'let' para 'const'
-    const questionParts: string[] = [];
-
-    if (filters.palavrasChave.length > 0) {
-      questionParts.push(`sobre ${filters.palavrasChave.join(' ou ')}`);
-    }
-    if (filters.modalidades.length > 0) {
-      questionParts.push(`na modalidade ${filters.modalidades.join(' ou ')}`);
-    }
-    if (filters.estado) {
-      questionParts.push(`no estado de ${filters.estado}`);
-    }
-    if (filters.dateRange?.from) {
-      const from = format(filters.dateRange.from, 'dd/MM/yyyy');
-      if (filters.dateRange.to) {
-        const to = format(filters.dateRange.to, 'dd/MM/yyyy');
-        questionParts.push(`publicados entre ${from} e ${to}`);
-      } else {
-        questionParts.push(`publicados a partir de ${from}`);
-      }
-    }
-    if (filters.valorMin || filters.valorMax) {
-      let valorPart = "com valor";
-      if (filters.valorMin) valorPart += ` mínimo de R$${filters.valorMin}`;
-      if (filters.valorMin && filters.valorMax) valorPart += " e";
-      if (filters.valorMax) valorPart += ` máximo de R$${filters.valorMax}`;
-      questionParts.push(valorPart);
-    }
-
-    const question = "Licitações " + questionParts.join(', ');
-
-    if (questionParts.length === 0) {
+    if (Object.values(filters).every(val => (Array.isArray(val) ? val.length === 0 : !val))) {
       toast.info("Por favor, selecione ao menos um filtro para buscar.");
       setIsLoading(false);
       setHasSearched(false);
@@ -119,19 +80,17 @@ export default function Home() {
     }
 
     try {
+      // --- MODIFICAÇÃO CRÍTICA ---
+      // Envia o objeto de filtros diretamente, sem convertê-lo para uma string.
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          blacklist: filters.blacklist
-        }),
+        body: JSON.stringify({ filters }), // Envia o objeto estruturado
       });
-      const data = await res.json();
+      // --- FIM DA MODIFICAÇÃO ---
 
-      if (!res.ok) {
-        throw new Error(data.message || data.error || "Erro no servidor.");
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erro no servidor.");
 
       setAllResults(data.resultados || []);
       if (!data.resultados?.length) {
@@ -152,6 +111,7 @@ export default function Home() {
     }
   };
 
+  // ... (resto do componente, incluindo o JSX, permanece o mesmo) ...
   const paginationItems = useMemo(() => {
     const items: (number | string)[] = [];
     if (totalPages <= 7) {
