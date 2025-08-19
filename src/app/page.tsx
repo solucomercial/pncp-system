@@ -80,14 +80,11 @@ export default function Home() {
     }
 
     try {
-      // --- MODIFICAÇÃO CRÍTICA ---
-      // Envia o objeto de filtros diretamente, sem convertê-lo para uma string.
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters }), // Envia o objeto estruturado
+        body: JSON.stringify({ filters }),
       });
-      // --- FIM DA MODIFICAÇÃO ---
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erro no servidor.");
@@ -111,7 +108,6 @@ export default function Home() {
     }
   };
 
-  // ... (resto do componente, incluindo o JSX, permanece o mesmo) ...
   const paginationItems = useMemo(() => {
     const items: (number | string)[] = [];
     if (totalPages <= 7) {

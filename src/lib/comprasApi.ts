@@ -13,7 +13,7 @@ export interface PncpApiFilters {
  blacklist: string[];
 }
 
-const PNCP_CONSULTA_API_URL = 'https://pncp.gov.br/api/consulta';
+const PNCP_CONSULTA_API_URL = process.env.PNCP_CONSULTA_API_URL;
 
 export const pncpApi = axios.create({
  baseURL: PNCP_CONSULTA_API_URL,
@@ -77,7 +77,6 @@ export async function buscarLicitacoesPNCP(
 
   const baseParams: Record<string, unknown> = { tamanhoPagina: 50 };
 
-  // **CORREÇÃO: Altera o formato da data para yyyyMMdd**
   if (filters.dataInicial && filters.dataFinal) {
    let dataInicial = parseISO(filters.dataInicial);
    const dataFinal = parseISO(filters.dataFinal);
