@@ -44,7 +44,11 @@ export async function POST(request: Request) {
 
     console.log(`✅ Processamento finalizado. Enviando ${licitacoesViaveis.length} licitações viáveis para o frontend.`);
 
-    return NextResponse.json({ resultados: licitacoesViaveis });
+    return NextResponse.json({
+      resultados: licitacoesViaveis,
+      totalBruto: licitacoesBrutas.length,
+      totalFinal: licitacoesViaveis.length
+    });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';

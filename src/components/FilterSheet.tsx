@@ -53,7 +53,7 @@ const defaultBlacklist = [
  "samba", "pagode", "rock", "sertanejo", "lavagem dos veiculos",
  "teatro", "móveis", "imóveis", "ginástica", "musculação", "dança", "imprensa", "segurança privada", "desfile", "albergagem", "veterinária",
  "usina", "professor", "recreativos", "arbitragem", "assesoria", "consultoria", "cerimonialista", "campeonatos", "recapeamento", "decoração natalina",
- "show pirotécnico", "fogos de artifício"
+ "show pirotécnico", "fogos de artifício", "elevador"
 ];
 
 // MODIFICAÇÃO: Lista completa de modalidades conforme a API do PNCP.

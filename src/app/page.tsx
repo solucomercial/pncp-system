@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useMemo } from "react"
-import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon } from "lucide-react"
+import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -90,8 +90,14 @@ export default function Home() {
       if (!res.ok) throw new Error(data.message || "Erro no servidor.");
 
       setAllResults(data.resultados || []);
-      if (!data.resultados?.length) {
-        toast.info("Nenhuma licitação encontrada para os filtros informados.");
+      if (!(data.totalBruto > 0)) {
+        toast.success("Análise concluída!",
+          {
+            description: "A IA analisou ${data.totalBruto.toLocaleString('pt- BR')} licitações e encontrou ${data.totalFinal.toLocaleString('pt - BR')} viáveis."
+          }
+        );
+      } else {
+        toast.info("Nenhuma licitação viável encontrada com os filtros aplicados.");
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
@@ -148,9 +154,22 @@ export default function Home() {
                 />
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
-              <Button onClick={() => setIsFilterSheetOpen(true)} className="min-w-[120px] h-11 text-base">
-                <FilterIcon className="mr-2 h-4 w-4" />
-                Filtros
+              <Button
+                onClick={() => setIsFilterSheetOpen(true)}
+                className="min-w-[120px] h-11 text-base"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Filtrando...
+                  </>
+                ) : (
+                  <>
+                    <FilterIcon className="mr-2 h-4 w-4" />
+                    Filtros
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
