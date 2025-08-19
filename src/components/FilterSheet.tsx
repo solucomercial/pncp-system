@@ -29,6 +29,7 @@ import {
  CommandItem,
  CommandList,
 } from "@/components/ui/command"
+import { Switch } from "@/components/ui/switch"
 import { Calendar as CalendarIcon, Check, ChevronsUpDown, XIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 import { format } from "date-fns"
@@ -103,6 +104,7 @@ export interface Filters {
  valorMax: string;
  estado: string | null;
  blacklist: string[];
+ useGeminiAnalysis?: boolean;
 }
 
 interface FilterSheetProps {
@@ -119,6 +121,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
  const [valorMax, setValorMax] = useState<string>("");
  const [estado, setEstado] = useState<string | null>(null);
  const [blacklist, setBlacklist] = useState<string[]>(defaultBlacklist);
+ const [useGeminiAnalysis, setUseGeminiAnalysis] = useState<boolean>(true);
  const [newBlacklistItem, setNewBlacklistItem] = useState<string>("");
 
  const [openLinhaFornecimento, setOpenLinhaFornecimento] = useState(false);
@@ -133,6 +136,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
    valorMax,
    estado,
    blacklist,
+   useGeminiAnalysis
   });
   onOpenChange(false);
  };
@@ -145,6 +149,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
   setValorMax("");
   setEstado(null);
   setBlacklist(defaultBlacklist);
+  setUseGeminiAnalysis(true);
  };
 
  const addBlacklistItem = () => {
@@ -176,6 +181,23 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
     </SheetHeader>
 
     <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+     <div className="space-y-3">
+      <Label className="text-sm font-medium">Análise com IA (Gemini)</Label>
+      <div className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted/40 transition-colors">
+       <Switch
+        id="gemini-analysis"
+        checked={useGeminiAnalysis}
+        onCheckedChange={setUseGeminiAnalysis}
+       />
+       <label htmlFor="gemini-analysis" className="text-sm font-normal leading-none cursor-pointer select-none">
+        {useGeminiAnalysis ? "Análise com IA ativada" : "Análise com IA desativada"}
+       </label>
+      </div>
+      <p className="text-xs text-muted-foreground px-2">
+       Desative para uma busca mais rápida e ampla, sem o filtro de relevância da IA.
+      </p>
+     </div>
+
      {/* Modalidades */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Modalidade</Label>

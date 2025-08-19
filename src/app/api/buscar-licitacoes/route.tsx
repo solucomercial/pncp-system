@@ -14,6 +14,8 @@ export async function POST(request: Request) {
 
     console.log("▶️ Rota da API recebendo filtros do frontend:", filters);
 
+    const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
+
     const mappedFilters = {
       palavrasChave: filters.palavrasChave,
       valorMin: filters.valorMin ? parseFloat(filters.valorMin) : null,
