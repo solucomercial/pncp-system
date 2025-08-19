@@ -90,14 +90,31 @@ export default function Home() {
       if (!res.ok) throw new Error(data.message || "Erro no servidor.");
 
       setAllResults(data.resultados || []);
-      if (!(data.totalBruto > 0)) {
-        toast.success("Análise concluída!",
-          {
-            description: "A IA analisou ${data.totalBruto.toLocaleString('pt- BR')} licitações e encontrou ${data.totalFinal.toLocaleString('pt - BR')} viáveis."
-          }
-        );
+
+      const useGemini = filters.useGeminiAnalysis !== false;
+      const totalBruto = data.totalBruto || 0;
+      const totalFinal = data.totalFinal || 0;
+
+      if (totalFinal > 0) {
+        if (useGemini) {
+          toast.success("Análise concluída!", {
+            description: `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações e encontrou ${totalFinal.toLocaleString('pt-BR')} viáveis.`
+          });
+        } else {
+          toast.success("Busca concluída!", {
+            description: `Foram encontradas ${totalFinal.toLocaleString('pt-BR')} licitações com os filtros aplicados.`
+          });
+        }
       } else {
-        toast.info("Nenhuma licitação viável encontrada com os filtros aplicados.");
+        if (useGemini && totalBruto > 0) {
+          toast.info("Análise concluída", {
+            description: `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações, mas nenhuma foi considerada viável.`
+          });
+        } else {
+          toast.info("Nenhuma licitação encontrada", {
+            description: "Nenhuma licitação foi encontrada com os filtros aplicados."
+          });
+        }
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";

@@ -42,15 +42,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ resultados: [] });
     }
 
-    const licitacoesViaveis = await analyzeAndFilterBids(licitacoesBrutas);
+    if (useGeminiAnalysis) {
+      const licitacoesViaveis = await analyzeAndFilterBids(licitacoesBrutas);
 
-    console.log(`✅ Processamento finalizado. Enviando ${licitacoesViaveis.length} licitações viáveis para o frontend.`);
+      console.log(`✅ Processamento finalizado. Enviando ${licitacoesViaveis.length} licitações viáveis para o frontend.`);
 
-    return NextResponse.json({
-      resultados: licitacoesViaveis,
-      totalBruto: licitacoesBrutas.length,
-      totalFinal: licitacoesViaveis.length
-    });
+      return NextResponse.json({
+        resultados: licitacoesViaveis,
+        totalBruto: licitacoesBrutas.length,
+        totalFinal: licitacoesViaveis.length
+      });
+    } else {
+      console.log("✅ Análise com Gemini desativada. Retornando resultados brutos.");
+      return NextResponse.json({
+        resultados: licitacoesBrutas,
+        totalBruto: licitacoesBrutas.length,
+        totalFinal: licitacoesBrutas.length
+      });
+    }
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';

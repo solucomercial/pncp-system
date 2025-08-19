@@ -57,7 +57,6 @@ const defaultBlacklist = [
  "show pirotécnico", "fogos de artifício", "elevador"
 ];
 
-// MODIFICAÇÃO: Lista completa de modalidades conforme a API do PNCP.
 const modalidadesDisponiveis = [
  { id: "leilão eletrônico", label: "Leilão Eletrônico" },
  { id: "diálogo competitivo", label: "Diálogo Competitivo" },
@@ -136,7 +135,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
    valorMax,
    estado,
    blacklist,
-   useGeminiAnalysis
+   useGeminiAnalysis,
   });
   onOpenChange(false);
  };
