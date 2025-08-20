@@ -368,7 +368,7 @@ export default function Home() {
               </ul>
             </CardContent>
             {totalPages > 1 && (
-              <CardFooter className="justify-between">
+              <CardFooter className="flex-col sm:flex-row items-center sm:justify-between gap-4">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem><PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }} className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
@@ -381,7 +381,6 @@ export default function Home() {
                   </PaginationContent>
                 </Pagination>
                 <div className="flex items-center space-x-2 text-sm">
-                  <span>Itens por página:</span>
                   <Select
                     value={String(itemsPerPage)}
                     onValueChange={(value) => {
