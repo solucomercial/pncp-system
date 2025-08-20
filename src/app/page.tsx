@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react" // Adicionado useEffect
+import React, { useState, useMemo, useEffect } from "react"
 import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -260,10 +260,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto py-4 px-4">
-          <h1 className="text-2xl font-bold text-gray-800">Licitações PNCP</h1>
-          <p className="text-sm text-gray-500">Busca inteligente e abrangente em licitações públicas do PNCP.</p>
+      <header className="bg-white border-b shadow-sm sticky top-0 z-10 dark:bg-gray-800 dark:border-gray-700">
+        <div className="container mx-auto py-4 px-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Licitações PNCP</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Busca inteligente e abrangente em licitações públicas do PNCP.</p>
+          </div>
         </div>
       </header>
 
