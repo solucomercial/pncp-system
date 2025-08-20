@@ -69,6 +69,7 @@ export default function Home() {
       const local = `${licitacao.unidadeOrgao?.municipioNome ?? ''} / ${licitacao.unidadeOrgao?.ufSigla ?? ''}`;
       return (
         licitacao.objetoCompra?.toLowerCase().includes(lowercasedTerm) ||
+        licitacao.numeroControlePNCP?.toLowerCase().includes(lowercasedTerm) ||
         licitacao.orgaoEntidade?.razaoSocial?.toLowerCase().includes(lowercasedTerm) ||
         local.toLowerCase().includes(lowercasedTerm) ||
         formatGenericDateTime(licitacao.dataPublicacaoPncp).toLowerCase().includes(lowercasedTerm) ||
