@@ -17,8 +17,6 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -95,9 +93,13 @@ export async function analyzeAndFilterBids(
 
   const allViableBids: PncpLicitacao[] = [...cachedViableBids];
   const CHUNK_SIZE = 150;
-  const totalChunks = Math.ceil(bidsToAnalyze.length / CHUNK_SIZE);
+  const chunks = [];
+  for (let i = 0; i < bidsToAnalyze.length; i += CHUNK_SIZE) {
+    chunks.push(bidsToAnalyze.slice(i, i + CHUNK_SIZE));
+  }
+  const totalChunks = chunks.length
 
-  console.log(`🧠 Iniciando análise de ${bidsToAnalyze.length} licitações em lotes de ${CHUNK_SIZE}.`);
+  console.log(`🧠 Iniciando análise de ${bidsToAnalyze.length} licitações em ${totalChunks} lotes de até ${CHUNK_SIZE}.`);
   onProgress({
     type: 'start',
     message: `Análise com IA iniciada para ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações.`,
@@ -105,9 +107,8 @@ export async function analyzeAndFilterBids(
     totalChunks,
   });
 
-  for (let i = 0; i < bidsToAnalyze.length; i += CHUNK_SIZE) {
-    const chunk = bidsToAnalyze.slice(i, i + CHUNK_SIZE);
-    const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+  const analysisPromises = chunks.map(async (chunk, index) => {
+    const chunkNumber = index + 1;
 
     const simplifiedBids = chunk.map(lic => ({
       numeroControlePNCP: lic.numeroControlePNCP,
@@ -179,7 +180,6 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 
 <OUTPUT_JSON>
 `;
-
     try {
       console.log(`🧠 Analisando lote ${chunkNumber} de ${totalChunks}...`);
       onProgress({
@@ -188,6 +188,7 @@ ${JSON.stringify(simplifiedBids, null, 2)}
         chunk: chunkNumber,
         totalChunks: totalChunks,
       });
+
       const result = await generateContentWithRetry(prompt);
       const response = await result.response;
       const text = response.text();
@@ -201,22 +202,26 @@ ${JSON.stringify(simplifiedBids, null, 2)}
           setCachedAnalysis(lic.numeroControlePNCP, isViable);
           return isViable;
         });
-        allViableBids.push(...filteredChunk);
+
+        return filteredChunk;
 
       } else {
         chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
         console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia. Todas as licitações do lote foram marcadas como não-viáveis.`);
+        return [];
       }
-
-      if ((i + CHUNK_SIZE) < bidsToAnalyze.length) {
-        await delay(1000);
-      }
-
     } catch (error) {
       chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
       console.error(`❌ Erro ao analisar o lote ${chunkNumber} com Gemini:`, error);
+      return [];
     }
-  }
+  });
+
+  const resultsFromAllChunks = await Promise.all(analysisPromises);
+
+  resultsFromAllChunks.forEach(chunkResult => {
+    allViableBids.push(...chunkResult);
+  });
 
   console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis (incluindo cache).`);
   return allViableBids;
