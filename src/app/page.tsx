@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react" // Adicionado useEffect
 import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,13 +32,26 @@ const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [allResults, setAllResults] = useState<Licitacao[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [selectedBids, setSelectedBids] = useState<string[]>([])
-  const [itemsPerPage, setItemsPerPage] = useState(10); // Novo estado para itens por página
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
+
 
   const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
@@ -50,8 +63,8 @@ export default function Home() {
   };
 
   const filteredResults = useMemo(() => {
-    if (!searchTerm.trim()) return allResults;
-    const lowercasedTerm = searchTerm.toLowerCase();
+    if (!debouncedSearchTerm.trim()) return allResults;
+    const lowercasedTerm = debouncedSearchTerm.toLowerCase();
     return allResults.filter(licitacao => {
       const local = `${licitacao.unidadeOrgao?.municipioNome ?? ''} / ${licitacao.unidadeOrgao?.ufSigla ?? ''}`;
       return (
@@ -63,7 +76,7 @@ export default function Home() {
         formatCurrency(licitacao.valorTotalEstimado).toLowerCase().includes(lowercasedTerm)
       );
     });
-  }, [allResults, searchTerm]);
+  }, [allResults, debouncedSearchTerm]);
 
   const { paginatedResults, totalPages } = useMemo(() => {
     const total = Math.ceil(filteredResults.length / itemsPerPage);
@@ -262,7 +275,7 @@ export default function Home() {
                 <Input
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Pesquise nos resultados por palavra-chave, órgão, etc..."
                   className="pl-10 h-11"
                   disabled={isLoading || allResults.length === 0}
@@ -368,6 +381,7 @@ export default function Home() {
                   </PaginationContent>
                 </Pagination>
                 <div className="flex items-center space-x-2 text-sm">
+                  <span>Itens por página:</span>
                   <Select
                     value={String(itemsPerPage)}
                     onValueChange={(value) => {
