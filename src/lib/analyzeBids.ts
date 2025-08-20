@@ -2,8 +2,8 @@ import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerateContentResult } fr
 import { PncpLicitacao } from './types';
 
 if (!process.env.GOOGLE_API_KEY) {
- console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
- throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
+  console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
+  throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
@@ -12,62 +12,88 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
- let attempt = 0;
- while (attempt < maxRetries) {
-  try {
-   const result = await model.generateContent(prompt);
-   return result;
-  } catch (error) {
-   const apiError = error as unknown;
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result;
+    } catch (error) {
+      const apiError = error as unknown;
 
-   if (
-    apiError instanceof GoogleGenerativeAIError &&
-    (typeof apiError.message === 'string' && apiError.message.includes('503') ||
-     typeof (apiError as { status?: number }).status === 'number' && (apiError as { status?: number }).status === 429)
-   ) {
-    attempt++;
-    const isRateLimit = (apiError as { status?: number }).status === 429;
-    const delayTime = isRateLimit ? 61000 : Math.pow(2, attempt) * 1000;
+      if (
+        apiError instanceof GoogleGenerativeAIError &&
+        (typeof apiError.message === 'string' && apiError.message.includes('503') ||
+          typeof (apiError as { status?: number }).status === 'number' && (apiError as { status?: number }).status === 429)
+      ) {
+        attempt++;
+        const isRateLimit = (apiError as { status?: number }).status === 429;
+        const delayTime = isRateLimit ? 61000 : Math.pow(2, attempt) * 1000;
 
-    if (attempt >= maxRetries) {
-     console.error(`❌ Falha na chamada ao Gemini após ${maxRetries} tentativas.`, error);
-     throw new Error(`O serviço de IA está enfrentando problemas (${(apiError as { status?: number }).status}). Tente novamente mais tarde.`);
+        if (attempt >= maxRetries) {
+          console.error(`❌ Falha na chamada ao Gemini após ${maxRetries} tentativas.`, error);
+          throw new Error(`O serviço de IA está enfrentando problemas (${(apiError as { status?: number }).status}). Tente novamente mais tarde.`);
+        }
+
+        console.warn(`⚠️ Serviço do Gemini retornou status ${(apiError as { status?: number }).status || '503'}. Tentando novamente em ${delayTime / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delayTime));
+      } else {
+        throw error;
+      }
     }
-
-    console.warn(`⚠️ Serviço do Gemini retornou status ${(apiError as { status?: number }).status || '503'}. Tentando novamente em ${delayTime / 1000}s...`);
-    await new Promise(resolve => setTimeout(resolve, delayTime));
-   } else {
-    throw error;
-   }
   }
- }
- throw new Error('Falha ao gerar conteúdo após múltiplas tentativas.');
+  throw new Error('Falha ao gerar conteúdo após múltiplas tentativas.');
 }
 
+// --- INÍCIO DA ALTERAÇÃO ---
+type ProgressUpdate = {
+  type: 'progress' | 'start' | 'complete' | 'error';
+  message: string;
+  chunk?: number;
+  totalChunks?: number;
+  total?: number;
+  processed?: number;
+  data?: PncpLicitacao[];
+};
 
-export async function analyzeAndFilterBids(licitacoes: PncpLicitacao[]): Promise<PncpLicitacao[]> {
- if (!licitacoes || licitacoes.length === 0) {
-  return [];
- }
+type ProgressCallback = (update: ProgressUpdate) => void;
 
- const allViableBids: PncpLicitacao[] = [];
- const CHUNK_SIZE = 150;
+export async function analyzeAndFilterBids(
+  licitacoes: PncpLicitacao[],
+  onProgress: ProgressCallback
+): Promise<PncpLicitacao[]> {
+  // --- FIM DA ALTERAÇÃO ---
+  if (!licitacoes || licitacoes.length === 0) {
+    return [];
+  }
 
- console.log(`🧠 Iniciando análise de ${licitacoes.length} licitações em lotes de ${CHUNK_SIZE}.`);
+  const allViableBids: PncpLicitacao[] = [];
+  const CHUNK_SIZE = 150;
+  const totalChunks = Math.ceil(licitacoes.length / CHUNK_SIZE);
 
- for (let i = 0; i < licitacoes.length; i += CHUNK_SIZE) {
-  const chunk = licitacoes.slice(i, i + CHUNK_SIZE);
+  // --- INÍCIO DA ALTERAÇÃO ---
+  console.log(`🧠 Iniciando análise de ${licitacoes.length} licitações em lotes de ${CHUNK_SIZE}.`);
+  onProgress({
+    type: 'start',
+    message: `Análise com IA iniciada para ${licitacoes.length.toLocaleString('pt-BR')} licitações.`,
+    total: licitacoes.length,
+    totalChunks,
+  });
+  // --- FIM DA ALTERAÇÃO ---
 
-  const simplifiedBids = chunk.map(lic => ({
-   numeroControlePNCP: lic.numeroControlePNCP,
-   objetoCompra: lic.objetoCompra,
-   modalidadeNome: lic.modalidadeNome,
-   valorTotalEstimado: lic.valorTotalEstimado,
-   municipioNome: lic.unidadeOrgao?.municipioNome,
-   ufSigla: lic.unidadeOrgao?.ufSigla,
-  }));
+  for (let i = 0; i < licitacoes.length; i += CHUNK_SIZE) {
+    const chunk = licitacoes.slice(i, i + CHUNK_SIZE);
+    const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
 
-  const prompt = `
+    const simplifiedBids = chunk.map(lic => ({
+      numeroControlePNCP: lic.numeroControlePNCP,
+      objetoCompra: lic.objetoCompra,
+      modalidadeNome: lic.modalidadeNome,
+      valorTotalEstimado: lic.valorTotalEstimado,
+      municipioNome: lic.unidadeOrgao?.municipioNome,
+      ufSigla: lic.unidadeOrgao?.ufSigla,
+    }));
+
+    const prompt = `
 <MISSION>
 Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA (CNPJ 09.445.502/0001-09). Sua tarefa é analisar uma lista de licitações em formato JSON e retornar **APENAS** uma sub-lista, também em formato JSON, contendo somente as licitações que são genuinamente relevantes e viáveis para a empresa. Seja extremamente rigoroso e detalhista em sua análise.
 </MISSION>
@@ -109,35 +135,45 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 <OUTPUT_JSON>
 `;
 
-  try {
-   console.log(`🧠 Analisando lote ${Math.floor(i / CHUNK_SIZE) + 1}...`);
-   const result = await generateContentWithRetry(prompt);
-   const response = await result.response;
-   const text = response.text();
+    try {
+      // --- INÍCIO DA ALTERAÇÃO ---
+      console.log(`🧠 Analisando lote ${chunkNumber} de ${totalChunks}...`);
+      onProgress({
+        type: 'progress',
+        message: `Analisando lote ${chunkNumber} de ${totalChunks}...`,
+        chunk: chunkNumber,
+        totalChunks: totalChunks,
+      });
+      // --- FIM DA ALTERAÇÃO ---
+      const result = await generateContentWithRetry(prompt);
+      const response = await result.response;
+      const text = response.text();
 
-   if (text) {
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-     const jsonText = jsonMatch[0];
-     const viableSimplifiedBids = JSON.parse(jsonText) as { numeroControlePNCP: string }[];
-     const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
+      if (text) {
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const jsonText = jsonMatch[0];
+          const viableSimplifiedBids = JSON.parse(jsonText) as { numeroControlePNCP: string }[];
+          const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
 
-     const filteredChunk = chunk.filter(lic => viablePncpIds.has(lic.numeroControlePNCP));
-     allViableBids.push(...filteredChunk);
-    } else {
-     console.warn(`⚠️ Lote ${Math.floor(i / CHUNK_SIZE) + 1} não retornou um JSON de array válido.`);
+          const filteredChunk = chunk.filter(lic => viablePncpIds.has(lic.numeroControlePNCP));
+          allViableBids.push(...filteredChunk);
+        } else {
+          console.warn(`⚠️ Lote ${Math.floor(i / CHUNK_SIZE) + 1} não retornou um JSON de array válido.`);
+        }
+      }
+
+      if ((i + CHUNK_SIZE) < licitacoes.length) {
+        await delay(1000);
+      }
+
+    } catch (error) {
+      console.error(`❌ Erro ao analisar o lote ${Math.floor(i / CHUNK_SIZE) + 1} com Gemini:`, error);
     }
-   }
-
-   if ((i + CHUNK_SIZE) < licitacoes.length) {
-    await delay(1000);
-   }
-
-  } catch (error) {
-   console.error(`❌ Erro ao analisar o lote ${Math.floor(i / CHUNK_SIZE) + 1} com Gemini:`, error);
   }
- }
 
- console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
- return allViableBids;
+  // --- INÍCIO DA ALTERAÇÃO ---
+  console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
+  return allViableBids;
 }
+// --- FIM DA ALTERAÇÃO ---

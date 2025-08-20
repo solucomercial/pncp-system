@@ -16,50 +16,70 @@ export async function POST(request: Request) {
 
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
-    const mappedFilters = {
-      palavrasChave: filters.palavrasChave,
-      valorMin: filters.valorMin ? parseFloat(filters.valorMin) : null,
-      valorMax: filters.valorMax ? parseFloat(filters.valorMax) : null,
-      estado: filters.estado,
-      modalidades: filters.modalidades,
-      dataInicial: filters.dateRange?.from ? new Date(filters.dateRange.from).toISOString() : null,
-      dataFinal: filters.dateRange?.to ? new Date(filters.dateRange.to).toISOString() : null,
-      blacklist: filters.blacklist,
-    };
+    // --- INÍCIO DA ALTERAÇÃO ---
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        const enqueue = (data: object) => {
+          controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+        };
 
-    console.log("🔎 Buscando licitações no PNCP com filtros mapeados:", mappedFilters);
+        try {
+          const mappedFilters = {
+            palavrasChave: filters.palavrasChave,
+            valorMin: filters.valorMin ? parseFloat(filters.valorMin) : null,
+            valorMax: filters.valorMax ? parseFloat(filters.valorMax) : null,
+            estado: filters.estado,
+            modalidades: filters.modalidades,
+            dataInicial: filters.dateRange?.from ? new Date(filters.dateRange.from).toISOString() : null,
+            dataFinal: filters.dateRange?.to ? new Date(filters.dateRange.to).toISOString() : null,
+            blacklist: filters.blacklist,
+          };
 
-    const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters);
+          enqueue({ type: 'info', message: 'Buscando licitações no PNCP...' });
+          const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters);
 
-    if (!licitacoesResponse.success || !licitacoesResponse.data?.data) {
-      throw new Error(licitacoesResponse.error || 'Falha ao buscar licitações no PNCP');
-    }
+          if (!licitacoesResponse.success || !licitacoesResponse.data?.data) {
+            throw new Error(licitacoesResponse.error || 'Falha ao buscar licitações no PNCP');
+          }
 
-    const licitacoesBrutas = licitacoesResponse.data.data;
-    console.log(`📡 Recebidas ${licitacoesBrutas.length} licitações brutas do PNCP.`);
+          const licitacoesBrutas = licitacoesResponse.data.data;
+          enqueue({ type: 'info', message: `Foram encontradas ${licitacoesBrutas.length.toLocaleString('pt-BR')} licitações.` });
 
-    if (licitacoesBrutas.length === 0) {
-      return NextResponse.json({ resultados: [] });
-    }
 
-    if (useGeminiAnalysis) {
-      const licitacoesViaveis = await analyzeAndFilterBids(licitacoesBrutas);
+          if (licitacoesBrutas.length === 0) {
+            enqueue({ type: 'result', resultados: [], totalBruto: 0, totalFinal: 0 });
+            controller.close();
+            return;
+          }
 
-      console.log(`✅ Processamento finalizado. Enviando ${licitacoesViaveis.length} licitações viáveis para o frontend.`);
+          if (useGeminiAnalysis) {
+            const licitacoesViaveis = await analyzeAndFilterBids(licitacoesBrutas, (progressUpdate) => {
+              enqueue(progressUpdate);
+            });
+            enqueue({ type: 'result', resultados: licitacoesViaveis, totalBruto: licitacoesBrutas.length, totalFinal: licitacoesViaveis.length });
+          } else {
+            console.log("✅ Análise com Gemini desativada. Retornando resultados brutos.");
+            enqueue({ type: 'result', resultados: licitacoesBrutas, totalBruto: licitacoesBrutas.length, totalFinal: licitacoesBrutas.length });
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
+          console.error("❌ Erro crítico ao processar requisição em /api/buscar-licitacoes:", error);
+          enqueue({ type: 'error', message: errorMessage });
+        } finally {
+          controller.close();
+        }
+      },
+    });
 
-      return NextResponse.json({
-        resultados: licitacoesViaveis,
-        totalBruto: licitacoesBrutas.length,
-        totalFinal: licitacoesViaveis.length
-      });
-    } else {
-      console.log("✅ Análise com Gemini desativada. Retornando resultados brutos.");
-      return NextResponse.json({
-        resultados: licitacoesBrutas,
-        totalBruto: licitacoesBrutas.length,
-        totalFinal: licitacoesBrutas.length
-      });
-    }
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+    // --- FIM DA ALTERAÇÃO ---
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
