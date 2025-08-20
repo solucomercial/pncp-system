@@ -16,13 +16,19 @@ import {
   PaginationPrevious,
   PaginationEllipsis
 } from "@/components/ui/pagination"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { FilterSheet, type Filters } from "@/components/FilterSheet"
 import { Toaster, toast } from "sonner"
 import { type PncpLicitacao as Licitacao } from "@/lib/types"
 import { Checkbox } from "@/components/ui/checkbox"
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
-const ITEMS_PER_PAGE = 100;
 
 export default function Home() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -32,6 +38,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
   const [selectedBids, setSelectedBids] = useState<string[]>([])
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Novo estado para itens por página
 
   const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
@@ -59,12 +66,12 @@ export default function Home() {
   }, [allResults, searchTerm]);
 
   const { paginatedResults, totalPages } = useMemo(() => {
-    const total = Math.ceil(filteredResults.length / ITEMS_PER_PAGE);
+    const total = Math.ceil(filteredResults.length / itemsPerPage);
     return {
-      paginatedResults: filteredResults.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+      paginatedResults: filteredResults.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
       totalPages: total
     };
-  }, [filteredResults, currentPage]);
+  }, [filteredResults, currentPage, itemsPerPage]);
 
 
   const handleApplyFilters = async (filters: Filters) => {
@@ -348,7 +355,7 @@ export default function Home() {
               </ul>
             </CardContent>
             {totalPages > 1 && (
-              <CardFooter>
+              <CardFooter className="justify-between">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem><PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }} className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
@@ -360,6 +367,25 @@ export default function Home() {
                     <PaginationItem><PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }} className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
                   </PaginationContent>
                 </Pagination>
+                <div className="flex items-center space-x-2 text-sm">
+                  <Select
+                    value={String(itemsPerPage)}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-20 h-9">
+                      <SelectValue placeholder={itemsPerPage} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardFooter>
             )}
           </Card>
