@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerateContentResult } from '@google/generative-ai';
 import { PncpLicitacao } from './types';
+import { getCachedAnalysis, setCachedAnalysis } from './cache';
 
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
@@ -7,7 +8,14 @@ if (!process.env.GOOGLE_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    temperature: 0.1,
+    responseMimeType: "application/json",
+  }
+});
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -64,21 +72,41 @@ export async function analyzeAndFilterBids(
     return [];
   }
 
-  const allViableBids: PncpLicitacao[] = [];
+  const bidsToAnalyze: PncpLicitacao[] = [];
+  const cachedViableBids: PncpLicitacao[] = [];
+
+  console.log(`🔍 Verificando cache para ${licitacoes.length} licitações...`);
+  for (const lic of licitacoes) {
+    const cachedResult = getCachedAnalysis(lic.numeroControlePNCP);
+    if (cachedResult === true) {
+      cachedViableBids.push(lic);
+    } else if (cachedResult === null) {
+      bidsToAnalyze.push(lic);
+    }
+  }
+
+  console.log(`✅ ${cachedViableBids.length} licitações viáveis encontradas no cache.`);
+  console.log(`🧠 ${bidsToAnalyze.length} licitações restantes para análise com IA.`);
+
+  if (bidsToAnalyze.length === 0) {
+    onProgress({ type: 'complete', message: `Análise concluída. ${cachedViableBids.length} licitações viáveis encontradas no cache.` });
+    return cachedViableBids;
+  }
+
+  const allViableBids: PncpLicitacao[] = [...cachedViableBids];
   const CHUNK_SIZE = 150;
-  const totalChunks = Math.ceil(licitacoes.length / CHUNK_SIZE);
+  const totalChunks = Math.ceil(bidsToAnalyze.length / CHUNK_SIZE);
 
-
-  console.log(`🧠 Iniciando análise de ${licitacoes.length} licitações em lotes de ${CHUNK_SIZE}.`);
+  console.log(`🧠 Iniciando análise de ${bidsToAnalyze.length} licitações em lotes de ${CHUNK_SIZE}.`);
   onProgress({
     type: 'start',
-    message: `Análise com IA iniciada para ${licitacoes.length.toLocaleString('pt-BR')} licitações.`,
-    total: licitacoes.length,
+    message: `Análise com IA iniciada para ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações.`,
+    total: bidsToAnalyze.length,
     totalChunks,
   });
 
-  for (let i = 0; i < licitacoes.length; i += CHUNK_SIZE) {
-    const chunk = licitacoes.slice(i, i + CHUNK_SIZE);
+  for (let i = 0; i < bidsToAnalyze.length; i += CHUNK_SIZE) {
+    const chunk = bidsToAnalyze.slice(i, i + CHUNK_SIZE);
     const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
 
     const simplifiedBids = chunk.map(lic => ({
@@ -125,6 +153,26 @@ Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TER
 6.  Não inclua explicações, apenas o JSON.
 </INSTRUCTIONS>
 
+<EXAMPLES>
+[
+  {
+    "input": { "numeroControlePNCP": "12345", "objetoCompra": "contratação de empresa para prestação de serviços de limpeza, asseio e conservação predial.", "ufSigla": "SP" },
+    "output": { "numeroControlePNCP": "12345" },
+    "motivo": "Objeto alinhado com a área de Limpeza e Conservação."
+  },
+  {
+    "input": { "numeroControlePNCP": "67890", "objetoCompra": "aquisição de material de limpeza para a secretaria de educação.", "ufSigla": "SP" },
+    "output": null,
+    "motivo": "É uma compra de produto, não prestação de serviço."
+  },
+  {
+    "input": { "numeroControlePNCP": "11223", "objetoCompra": "serviços de manutenção predial e pequenas reformas no edifício sede.", "ufSigla": "RJ" },
+    "output": null,
+    "motivo": "Descartado pela REGRA 1 (Obras apenas em SP)."
+  }
+]
+</EXAMPLES>
+
 <BIDS_TO_ANALYZE>
 ${JSON.stringify(simplifiedBids, null, 2)}
 </BIDS_TO_ANALYZE>
@@ -145,28 +193,31 @@ ${JSON.stringify(simplifiedBids, null, 2)}
       const text = response.text();
 
       if (text) {
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const jsonText = jsonMatch[0];
-          const viableSimplifiedBids = JSON.parse(jsonText) as { numeroControlePNCP: string }[];
-          const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
+        const viableSimplifiedBids = JSON.parse(text) as { numeroControlePNCP: string }[];
+        const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
 
-          const filteredChunk = chunk.filter(lic => viablePncpIds.has(lic.numeroControlePNCP));
-          allViableBids.push(...filteredChunk);
-        } else {
-          console.warn(`⚠️ Lote ${Math.floor(i / CHUNK_SIZE) + 1} não retornou um JSON de array válido.`);
-        }
+        const filteredChunk = chunk.filter(lic => {
+          const isViable = viablePncpIds.has(lic.numeroControlePNCP);
+          setCachedAnalysis(lic.numeroControlePNCP, isViable);
+          return isViable;
+        });
+        allViableBids.push(...filteredChunk);
+
+      } else {
+        chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
+        console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia. Todas as licitações do lote foram marcadas como não-viáveis.`);
       }
 
-      if ((i + CHUNK_SIZE) < licitacoes.length) {
+      if ((i + CHUNK_SIZE) < bidsToAnalyze.length) {
         await delay(1000);
       }
 
     } catch (error) {
-      console.error(`❌ Erro ao analisar o lote ${Math.floor(i / CHUNK_SIZE) + 1} com Gemini:`, error);
+      chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
+      console.error(`❌ Erro ao analisar o lote ${chunkNumber} com Gemini:`, error);
     }
   }
 
-  console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
+  console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis (incluindo cache).`);
   return allViableBids;
 }
