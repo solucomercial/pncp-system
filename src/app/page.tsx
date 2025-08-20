@@ -19,6 +19,7 @@ import {
 import { FilterSheet, type Filters } from "@/components/FilterSheet"
 import { Toaster, toast } from "sonner"
 import { type PncpLicitacao as Licitacao } from "@/lib/types"
+import { Checkbox } from "@/components/ui/checkbox"
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 const ITEMS_PER_PAGE = 100;
@@ -30,6 +31,7 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [selectedBids, setSelectedBids] = useState<string[]>([])
 
   const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
@@ -72,6 +74,7 @@ export default function Home() {
     setCurrentPage(1);
     setHasSearched(true);
     setSearchTerm("");
+    setSelectedBids([]);
 
     if (!filters.dateRange?.from) {
       toast.error("Data não informada", {
@@ -175,6 +178,50 @@ export default function Home() {
     }
   };
 
+  const handleSelectBid = (numeroControlePNCP: string) => {
+    setSelectedBids(prev =>
+      prev.includes(numeroControlePNCP)
+        ? prev.filter(id => id !== numeroControlePNCP)
+        : [...prev, numeroControlePNCP]
+    );
+  };
+
+  const handleGenerateReport = async () => {
+    toast.loading("Gerando relatório...", { id: "report-toast" });
+    try {
+      const selectedLicitacoes = allResults.filter(licitacao =>
+        selectedBids.includes(licitacao.numeroControlePNCP)
+      );
+
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ licitacoes: selectedLicitacoes }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao gerar o relatório.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'relatorio-licitacoes.docx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Relatório gerado!", { id: "report-toast" });
+
+      setSelectedBids([]);
+
+    } catch (error) {
+      console.error("Erro ao gerar relatório:", error);
+      toast.error("Erro ao gerar relatório", { id: "report-toast" });
+    }
+  };
+
   const paginationItems = useMemo(() => {
     const items: (number | string)[] = [];
     if (totalPages <= 7) {
@@ -249,7 +296,15 @@ export default function Home() {
         ) : filteredResults.length > 0 ? (
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Resultados da Busca ({filteredResults.length} licitações encontradas)</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Resultados da Busca ({filteredResults.length} licitações encontradas)</CardTitle>
+                {selectedBids.length > 0 && (
+                  <Button onClick={handleGenerateReport}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Gerar Relatório ({selectedBids.length})
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <ul className="space-y-6">
@@ -269,15 +324,25 @@ export default function Home() {
                       <div className="flex items-start gap-2"><CalendarDays className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Publicação:</strong> {formatGenericDateTime(licitacao.dataPublicacaoPncp)}</span></div>
                       <div className="flex items-start gap-2"><strong>Valor Estimado:</strong><span className="font-semibold text-green-700">{formatCurrency(licitacao.valorTotalEstimado)}</span></div>
                     </div>
-                    {(licitacao.orgaoEntidade?.cnpj && licitacao.anoCompra && licitacao.sequencialCompra) && (
-                      <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`select-${licitacao.numeroControlePNCP}`}
+                          checked={selectedBids.includes(licitacao.numeroControlePNCP)}
+                          onCheckedChange={() => handleSelectBid(licitacao.numeroControlePNCP)}
+                        />
+                        <label htmlFor={`select-${licitacao.numeroControlePNCP}`} className="text-sm font-medium select-none cursor-pointer">
+                          Selecionar para o relatório
+                        </label>
+                      </div>
+                      {(licitacao.orgaoEntidade?.cnpj && licitacao.anoCompra && licitacao.sequencialCompra) && (
                         <Button variant="outline" size="sm" asChild>
                           <a href={`https://pncp.gov.br/app/editais/${licitacao.orgaoEntidade.cnpj}/${licitacao.anoCompra}/${licitacao.sequencialCompra}`} target="_blank" rel="noopener noreferrer">
                             <FileText className="w-4 h-4 mr-2" /> Ver no PNCP
                           </a>
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
