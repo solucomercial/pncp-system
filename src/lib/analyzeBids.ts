@@ -44,7 +44,6 @@ async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise
   throw new Error('Falha ao gerar conteúdo após múltiplas tentativas.');
 }
 
-// --- INÍCIO DA ALTERAÇÃO ---
 type ProgressUpdate = {
   type: 'progress' | 'start' | 'complete' | 'error';
   message: string;
@@ -61,7 +60,6 @@ export async function analyzeAndFilterBids(
   licitacoes: PncpLicitacao[],
   onProgress: ProgressCallback
 ): Promise<PncpLicitacao[]> {
-  // --- FIM DA ALTERAÇÃO ---
   if (!licitacoes || licitacoes.length === 0) {
     return [];
   }
@@ -70,7 +68,7 @@ export async function analyzeAndFilterBids(
   const CHUNK_SIZE = 150;
   const totalChunks = Math.ceil(licitacoes.length / CHUNK_SIZE);
 
-  // --- INÍCIO DA ALTERAÇÃO ---
+
   console.log(`🧠 Iniciando análise de ${licitacoes.length} licitações em lotes de ${CHUNK_SIZE}.`);
   onProgress({
     type: 'start',
@@ -78,7 +76,6 @@ export async function analyzeAndFilterBids(
     total: licitacoes.length,
     totalChunks,
   });
-  // --- FIM DA ALTERAÇÃO ---
 
   for (let i = 0; i < licitacoes.length; i += CHUNK_SIZE) {
     const chunk = licitacoes.slice(i, i + CHUNK_SIZE);
@@ -136,7 +133,6 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 `;
 
     try {
-      // --- INÍCIO DA ALTERAÇÃO ---
       console.log(`🧠 Analisando lote ${chunkNumber} de ${totalChunks}...`);
       onProgress({
         type: 'progress',
@@ -144,7 +140,6 @@ ${JSON.stringify(simplifiedBids, null, 2)}
         chunk: chunkNumber,
         totalChunks: totalChunks,
       });
-      // --- FIM DA ALTERAÇÃO ---
       const result = await generateContentWithRetry(prompt);
       const response = await result.response;
       const text = response.text();
@@ -172,8 +167,6 @@ ${JSON.stringify(simplifiedBids, null, 2)}
     }
   }
 
-  // --- INÍCIO DA ALTERAÇÃO ---
   console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
   return allViableBids;
 }
-// --- FIM DA ALTERAÇÃO ---

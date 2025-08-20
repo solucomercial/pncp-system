@@ -310,7 +310,7 @@ export default function Home() {
           )
         )}
       </main>
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="bottom-left" />
     </div>
   )
 }

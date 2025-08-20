@@ -16,7 +16,6 @@ export async function POST(request: Request) {
 
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
-    // --- INÍCIO DA ALTERAÇÃO ---
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
@@ -79,7 +78,6 @@ export async function POST(request: Request) {
         'Connection': 'keep-alive',
       },
     });
-    // --- FIM DA ALTERAÇÃO ---
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
