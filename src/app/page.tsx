@@ -79,6 +79,15 @@ export default function Home() {
       return;
     }
 
+    if (!filters.dateRange?.from) {
+      toast.error("Data não informada", {
+        description: "O filtro de data é obrigatório para realizar a busca.",
+      });
+      setIsLoading(false);
+      setHasSearched(false);
+      return;
+    }
+
     try {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
