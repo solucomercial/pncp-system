@@ -37,12 +37,12 @@ export function UserNav() {
  return (
   <DropdownMenu>
    <DropdownMenuTrigger asChild>
-    <Button variant="ghost" className="flex items-center justify-start gap-3 p-2 h-auto w-full max-w-[200px]">
+    <Button variant="ghost" className="relative h-8 w-8 rounded-full sm:w-full sm:max-w-[200px] sm:justify-start sm:rounded-md sm:p-2 sm:gap-3">
      <Avatar className="h-8 w-8">
       <AvatarImage src={image ?? ""} alt={name ?? email ?? ""} />
       <AvatarFallback>{initials}</AvatarFallback>
      </Avatar>
-     <div className="grid flex-1 text-left text-sm leading-tight">
+     <div className="hidden sm:grid flex-1 text-left text-sm leading-tight">
       <p className="text-sm font-medium leading-tight truncate">
        {name ?? email}
       </p>
@@ -52,7 +52,7 @@ export function UserNav() {
        </p>
       )}
      </div>
-     <MoreVertical className="h-4 w-4 text-muted-foreground ml-auto" />
+     <MoreVertical className="hidden sm:block h-4 w-4 text-muted-foreground ml-auto" />
     </Button>
    </DropdownMenuTrigger>
    <DropdownMenuContent className="w-50" align="start">
