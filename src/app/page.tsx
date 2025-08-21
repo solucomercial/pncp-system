@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react"
-import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import React, { useState, useMemo, useEffect } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pagination,
   PaginationContent,
@@ -15,30 +16,38 @@ import {
   PaginationNext,
   PaginationPrevious,
   PaginationEllipsis
-} from "@/components/ui/pagination"
+} from "@/components/ui/pagination";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { FilterSheet, type Filters } from "@/components/FilterSheet"
-import { Toaster, toast } from "sonner"
-import { type PncpLicitacao as Licitacao } from "@/lib/types"
-import { Checkbox } from "@/components/ui/checkbox"
+} from "@/components/ui/select";
+import { FilterSheet, type Filters } from "@/components/FilterSheet";
+import { Toaster, toast } from "sonner";
+import { type PncpLicitacao as Licitacao } from "@/lib/types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { UserNav } from "@/components/UserNav";
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
 export default function Home() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
-  const [allResults, setAllResults] = useState<Licitacao[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
-  const [selectedBids, setSelectedBids] = useState<string[]>([])
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      signIn();
+    },
+  });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [allResults, setAllResults] = useState<Licitacao[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [selectedBids, setSelectedBids] = useState<string[]>([]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
@@ -51,7 +60,6 @@ export default function Home() {
       clearTimeout(timerId);
     };
   }, [searchTerm]);
-
 
   const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
   const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
@@ -87,7 +95,6 @@ export default function Home() {
     };
   }, [filteredResults, currentPage, itemsPerPage]);
 
-
   const handleApplyFilters = async (filters: Filters) => {
     console.log("Aplicando filtros do frontend:", filters);
     setIsLoading(true);
@@ -113,13 +120,16 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": process.env.NEXT_PUBLIC_API_KEY!,
         },
         body: JSON.stringify({ filters }),
       });
 
       if (!res.body) {
         throw new Error("A resposta do servidor não pode ser lida.");
+      }
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Falha na requisição para a API.');
       }
 
       const reader = res.body.getReader();
@@ -135,6 +145,7 @@ export default function Home() {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
+          if (!line) continue;
           try {
             const json = JSON.parse(line);
             switch (json.type) {
@@ -183,7 +194,7 @@ export default function Home() {
                 throw new Error(json.message);
             }
           } catch (e) {
-            console.error("Erro ao processar o stream:", e);
+            console.error("Erro ao processar o stream:", e, "Linha:", line);
           }
         }
       }
@@ -221,7 +232,6 @@ export default function Home() {
         method: 'POST',
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": process.env.NEXT_PUBLIC_API_KEY!,
         },
         body: JSON.stringify({ licitacoes: selectedLicitacoes }),
       });
@@ -265,6 +275,14 @@ export default function Home() {
     return items;
   }, [currentPage, totalPages]);
 
+  if (status === "loading" || !session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b shadow-sm sticky top-0 z-10 dark:bg-gray-800 dark:border-gray-700">
@@ -273,6 +291,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Licitações PNCP</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Busca inteligente e abrangente em licitações públicas do PNCP.</p>
           </div>
+          <UserNav />
         </div>
       </header>
 
@@ -320,7 +339,7 @@ export default function Home() {
 
         {isLoading ? (
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-lg" />)}
           </div>
         ) : filteredResults.length > 0 ? (
           <Card className="shadow-lg">
