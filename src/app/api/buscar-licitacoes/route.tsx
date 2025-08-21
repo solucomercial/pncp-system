@@ -8,6 +8,11 @@ interface RequestBody {
 }
 
 export async function POST(request: Request) {
+  const apiKey = request.headers.get('x-api-key');
+  if (apiKey !== process.env.API_KEY) {
+    return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
+  }
+
   try {
     const body: RequestBody = await request.json();
     const { filters } = body;

@@ -111,7 +111,10 @@ export default function Home() {
     try {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.NEXT_PUBLIC_API_KEY!,
+        },
         body: JSON.stringify({ filters }),
       });
 
@@ -216,7 +219,10 @@ export default function Home() {
 
       const response = await fetch('/api/generate-report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.NEXT_PUBLIC_API_KEY!,
+        },
         body: JSON.stringify({ licitacoes: selectedLicitacoes }),
       });
 
