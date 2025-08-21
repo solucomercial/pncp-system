@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server';
 import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 interface RequestBody {
   filters: Filters;
 }
 
 export async function POST(request: Request) {
-  const apiKey = request.headers.get('x-api-key');
-  if (apiKey !== process.env.API_KEY) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
@@ -49,7 +52,6 @@ export async function POST(request: Request) {
 
           const licitacoesBrutas = licitacoesResponse.data.data;
           enqueue({ type: 'info', message: `Foram encontradas ${licitacoesBrutas.length.toLocaleString('pt-BR')} licitações.` });
-
 
           if (licitacoesBrutas.length === 0) {
             enqueue({ type: 'result', resultados: [], totalBruto: 0, totalFinal: 0 });

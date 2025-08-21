@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { PncpLicitacao } from '@/lib/types';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../auth/[...nextauth]/route";
 
 export async function POST(request: Request) {
-  const apiKey = request.headers.get('x-api-key');
-  if (apiKey !== process.env.API_KEY) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
