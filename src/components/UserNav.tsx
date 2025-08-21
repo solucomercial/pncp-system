@@ -1,16 +1,13 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
-import { LogOut, MoreVertical, User as UserIcon } from "lucide-react";
+import { LogOut, MoreVertical } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
  DropdownMenu,
  DropdownMenuContent,
- DropdownMenuGroup,
  DropdownMenuItem,
- DropdownMenuLabel,
- DropdownMenuSeparator,
  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "./ui/button";
