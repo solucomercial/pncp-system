@@ -3,7 +3,7 @@ import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 interface RequestBody {
   filters: Filters;
