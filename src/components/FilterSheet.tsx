@@ -36,8 +36,6 @@ import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
-// --- DADOS E TIPOS ---
-
 const defaultBlacklist = [
  "teste", "simulação", "cancelado", "leilão", "dedetização", "controle de pragas",
  "poços artesianos", "desratização", "pombo", "ratos", "controle de pragas urbanas",
@@ -57,6 +55,65 @@ const defaultBlacklist = [
  "show pirotécnico", "fogos de artifício", "elevador"
 ];
 
+const linhasFornecimento = [
+ {
+  label: "Limpeza Predial",
+  keywords: [
+   "limpeza", "conservação", "asseio", "higienização",
+   "limpeza e conservação", "limpeza predial", "serviços de limpeza", "limpeza e higienização",
+   "limpeza hospitalar", "higienização de ambientes", "desinfecção", "assepsia", "limpeza terminal",
+   "tratamento de piso", "limpeza de vidros", "limpeza de fachadas", "serviços contínuos de limpeza"
+  ],
+ },
+ {
+  label: "Manutenção Predial",
+  keywords: [
+   "manutenção predial", "manutenção preventiva", "manutenção corretiva",
+   "serviços de reparo", "reformas", "pequenas obras", "manutenção de instalações", "elétrica", "hidráulica", "pintura", "alvenaria", "serralheria"
+  ],
+ },
+ {
+  label: "Engenharia",
+  keywords: [
+   "engenharia", "obras", "construção", "edificações", "serviços de engenharia",
+   "engenharia civil", "projetos de engenharia", "execução de obras", "infraestrutura"
+  ],
+ },
+ {
+  label: "Recursos Humanos (Mão de Obra)",
+  keywords: [
+   "mão de obra", "terceirização de serviços", "facilities", "postos de trabalho", "serviços continuados",
+   "apoio administrativo", "recepcionista", "porteiro", "copeiragem", "serviços gerais", "telefonista", "motorista", "jardinagem", "operacional"
+  ],
+ },
+ {
+  label: "Administração e Gestão",
+  keywords: [
+   "administração", "gestão", "cogestão", "gerenciamento", "apoio logístico",
+   "gestão de facilities", "gestão de contratos", "gestão prisional", "administração de unidades"
+  ],
+ },
+ {
+  label: "Locação de Veículos",
+  keywords: [
+   "locação de veículos", "aluguel de veículos", "locação de frota", "transporte",
+   "veículos com motorista", "veículos com condutor", "transporte de passageiros", "transporte de servidores", "fretamento"
+  ],
+ },
+ {
+  label: "Fornecimento de Alimentação",
+  keywords: [
+   "alimentação", "refeições", "nutrição", "fornecimento de alimentos",
+   "merenda escolar", "alimentação hospitalar", "alimentação prisional", "refeições coletivas", "kit lanche", "rancho"
+  ],
+ },
+ {
+  label: "Outras",
+  keywords: [],
+ },
+];
+
+
 const modalidadesDisponiveis = [
  { id: "leilão eletrônico", label: "Leilão Eletrônico" },
  { id: "diálogo competitivo", label: "Diálogo Competitivo" },
@@ -71,16 +128,6 @@ const modalidadesDisponiveis = [
  { id: "pré-qualificação", label: "Pré-qualificação" },
  { id: "credenciamento", label: "Credenciamento" },
  { id: "leilão presencial", label: "Leilão Presencial" },
-];
-
-const linhasFornecimento = [
- { value: "serviços de limpeza", label: "Serviços de Limpeza" },
- { value: "serviços de segurança", label: "Serviços de Segurança" },
- { value: "fornecimento de alimentação", label: "Fornecimento de Alimentação" },
- { value: "obras e engenharia", label: "Obras e Engenharia" },
- { value: "tecnologia da informação", label: "Tecnologia da Informação" },
- { value: "consultoria", label: "Consultoria" },
- { value: "material de escritório", label: "Material de Escritório" },
 ];
 
 const estadosBrasil = [
@@ -122,19 +169,33 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
  const [blacklist, setBlacklist] = useState<string[]>(defaultBlacklist);
  const [useGeminiAnalysis, setUseGeminiAnalysis] = useState<boolean>(true);
  const [newBlacklistItem, setNewBlacklistItem] = useState<string>("");
+ const [outrasIsSelected, setOutrasIsSelected] = useState(false);
+
 
  const [openLinhaFornecimento, setOpenLinhaFornecimento] = useState(false);
  const [openEstado, setOpenEstado] = useState(false);
 
  const handleApply = () => {
+  let finalBlacklist = [...blacklist];
+  let finalPalavrasChave = [...palavrasChave];
+
+  if (outrasIsSelected) {
+   const allOtherKeywords = linhasFornecimento
+    .filter(item => item.label !== "Outras")
+    .flatMap(item => item.keywords);
+
+   finalBlacklist = [...new Set([...finalBlacklist, ...allOtherKeywords])];
+   finalPalavrasChave = finalPalavrasChave.filter(kw => !allOtherKeywords.includes(kw));
+  }
+
   onApplyFilters({
    modalidades,
    dateRange: date,
-   palavrasChave,
+   palavrasChave: finalPalavrasChave,
    valorMin,
    valorMax,
    estado,
-   blacklist,
+   blacklist: finalBlacklist,
    useGeminiAnalysis,
   });
   onOpenChange(false);
@@ -149,6 +210,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
   setEstado(null);
   setBlacklist(defaultBlacklist);
   setUseGeminiAnalysis(true);
+  setOutrasIsSelected(false);
  };
 
  const addBlacklistItem = () => {
@@ -168,6 +230,10 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
    setBlacklist(prev => [...prev].sort());
   }
  }, [isOpen]);
+
+ const selectedGroupsCount = linhasFornecimento.filter(item =>
+  item.label !== "Outras" && item.keywords.every(kw => palavrasChave.includes(kw))
+ ).length + (outrasIsSelected ? 1 : 0);
 
  return (
   <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -197,7 +263,6 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </p>
      </div>
 
-     {/* Modalidades */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Modalidade</Label>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -220,7 +285,6 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </div>
      </div>
 
-     {/* Período de Publicação */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Período de Publicação</Label>
       <Popover>
@@ -236,13 +300,12 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </Popover>
      </div>
 
-     {/* Linha de Fornecimento */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Linha de Fornecimento</Label>
       <Popover open={openLinhaFornecimento} onOpenChange={setOpenLinhaFornecimento}>
        <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={openLinhaFornecimento} className="w-full justify-between">
-         {palavrasChave.length > 0 ? `${palavrasChave.length} selecionada(s)` : "Selecione..."}
+         {selectedGroupsCount > 0 ? `${selectedGroupsCount} selecionada(s)` : "Selecione..."}
          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
        </PopoverTrigger>
@@ -252,14 +315,33 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
          <CommandList>
           <CommandEmpty>Nenhuma linha encontrada.</CommandEmpty>
           <CommandGroup>
-           {linhasFornecimento.map((item) => (
-            <CommandItem key={item.value} onSelect={() => {
-             setPalavrasChave((prev) => prev.includes(item.value) ? prev.filter((v) => v !== item.value) : [...prev, item.value]);
-            }}>
-             <Check className={cn("mr-2 h-4 w-4", palavrasChave.includes(item.value) ? "opacity-100" : "opacity-0")} />
-             {item.label}
-            </CommandItem>
-           ))}
+           {linhasFornecimento.map((item) => {
+            const isSelected = item.label === "Outras"
+             ? outrasIsSelected
+             : item.keywords.every(kw => palavrasChave.includes(kw));
+
+            return (
+             <CommandItem
+              key={item.label}
+              onSelect={() => {
+               if (item.label === "Outras") {
+                setOutrasIsSelected(!outrasIsSelected);
+               } else {
+                setPalavrasChave(prev => {
+                 if (isSelected) {
+                  return prev.filter(kw => !item.keywords.includes(kw));
+                 } else {
+                  const newKeywords = item.keywords.filter(kw => !prev.includes(kw));
+                  return [...prev, ...newKeywords];
+                 }
+                });
+               }
+              }}>
+              <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
+              {item.label}
+             </CommandItem>
+            );
+           })}
           </CommandGroup>
          </CommandList>
         </Command>
@@ -267,7 +349,6 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </Popover>
      </div>
 
-     {/* Estado */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Estado</Label>
       <Popover open={openEstado} onOpenChange={setOpenEstado}>
@@ -299,7 +380,6 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </Popover>
      </div>
 
-     {/* Faixa de Valor */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Faixa de Valor (R$)</Label>
       <div className="flex items-center gap-2">
@@ -309,7 +389,6 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
       </div>
      </div>
 
-     {/* Blacklist */}
      <div className="space-y-3">
       <Label className="text-sm font-medium">Palavras-chave a Ignorar (Blacklist)</Label>
       <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[60px]">
