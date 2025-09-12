@@ -48,7 +48,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [selectedBids, setSelectedBids] = useState<string[]>([]);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -88,6 +89,12 @@ export default function Home() {
   }, [allResults, debouncedSearchTerm]);
 
   const { paginatedResults, totalPages } = useMemo(() => {
+    if (itemsPerPage === 'all') {
+      return {
+        paginatedResults: filteredResults,
+        totalPages: 1,
+      };
+    }
     const total = Math.ceil(filteredResults.length / itemsPerPage);
     return {
       paginatedResults: filteredResults.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
@@ -397,33 +404,38 @@ export default function Home() {
             </CardContent>
             {totalPages > 1 && (
               <CardFooter className="flex-col sm:flex-row items-center sm:justify-between gap-4">
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem><PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }} className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
-                    {paginationItems.map((item, index) => (
-                      <PaginationItem key={index}>
-                        {typeof item === 'number' ? (<PaginationLink href="#" onClick={(e) => { e.preventDefault(); handlePageChange(item); }} isActive={currentPage === item}>{item}</PaginationLink>) : (<PaginationEllipsis />)}
-                      </PaginationItem>
-                    ))}
-                    <PaginationItem><PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }} className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+                {/* Alteração 3: Ocultar controles de paginação se "Todos" estiver selecionado */}
+                {itemsPerPage !== 'all' && (
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem><PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }} className={currentPage === 1 ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
+                      {paginationItems.map((item, index) => (
+                        <PaginationItem key={index}>
+                          {typeof item === 'number' ? (<PaginationLink href="#" onClick={(e) => { e.preventDefault(); handlePageChange(item); }} isActive={currentPage === item}>{item}</PaginationLink>) : (<PaginationEllipsis />)}
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem><PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }} className={currentPage === totalPages ? "pointer-events-none opacity-50" : undefined} /></PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
                 <div className="flex items-center space-x-2 text-sm">
+                  {/* Alteração 4: Componente Select atualizado com a opção "Todos" */}
                   <Select
                     value={String(itemsPerPage)}
                     onValueChange={(value) => {
-                      setItemsPerPage(Number(value));
+                      setItemsPerPage(value === 'all' ? 'all' : Number(value));
                       setCurrentPage(1);
                     }}
                   >
-                    <SelectTrigger className="w-20 h-9">
-                      <SelectValue placeholder={itemsPerPage} />
+                    <SelectTrigger className="w-28 h-9">
+                      <SelectValue placeholder={itemsPerPage === 'all' ? 'Todos' : itemsPerPage} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="10">10 por página</SelectItem>
+                      <SelectItem value="20">20 por página</SelectItem>
+                      <SelectItem value="50">50 por página</SelectItem>
+                      <SelectItem value="100">100 por página</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
