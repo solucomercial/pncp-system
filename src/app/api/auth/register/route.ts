@@ -7,10 +7,31 @@ const prisma = new PrismaClient();
 export async function POST(request: Request) {
  try {
   const body = await request.json();
-  const { email, password, name, image } = body;
+  const { email, password, name, invitationCode } = body;
 
-  if (!email || !password || !name) {
-   return new NextResponse("Nome, e-mail e senha são obrigatórios", { status: 400 });
+  const secretCode = process.env.REGISTRATION_INVITE_CODE;
+
+  if (!secretCode) {
+   console.error("ERRO CRÍTICO: A variável de ambiente REGISTRATION_INVITE_CODE não está definida.");
+   return new NextResponse(
+    JSON.stringify({ message: "A funcionalidade de registo está temporariamente desativada." }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } }
+   );
+  }
+
+  if (!email || !password || !name || !invitationCode) {
+   return new NextResponse(
+    JSON.stringify({ message: "Todos os campos são obrigatórios." }),
+    { status: 400, headers: { 'Content-Type': 'application/json' } }
+   );
+  }
+
+  // Validação do código de convite
+  if (invitationCode !== secretCode) {
+   return new NextResponse(
+    JSON.stringify({ message: "Código de convite inválido." }),
+    { status: 403, headers: { 'Content-Type': 'application/json' } }
+   );
   }
 
   const existingUser = await prisma.user.findUnique({
@@ -18,7 +39,10 @@ export async function POST(request: Request) {
   });
 
   if (existingUser) {
-   return new NextResponse("Usuário já existe", { status: 400 });
+   return new NextResponse(
+    JSON.stringify({ message: "Um utilizador com este e-mail já existe." }),
+    { status: 409, headers: { 'Content-Type': 'application/json' } }
+   );
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
@@ -27,14 +51,17 @@ export async function POST(request: Request) {
    data: {
     name,
     email,
-    image,
     password: hashedPassword,
    },
   });
 
   return NextResponse.json(user);
+
  } catch (error) {
-  console.error("ERRO NO REGISTRO:", error);
-  return new NextResponse("Erro interno do servidor", { status: 500 });
+  console.error("ERRO NO REGISTO:", error);
+  return new NextResponse(
+   JSON.stringify({ message: "Erro interno do servidor." }),
+   { status: 500, headers: { 'Content-Type': 'application/json' } }
+  );
  }
 }
