@@ -29,6 +29,7 @@ import { Toaster, toast } from "sonner";
 import { type PncpLicitacao as Licitacao } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UserNav } from "@/components/UserNav";
+import { subDays } from "date-fns";
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
@@ -51,6 +52,25 @@ export default function Home() {
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const today = new Date();
+    const defaultFilters: Filters = {
+      modalidades: [],
+      palavrasChave: [],
+      valorMin: "",
+      valorMax: "",
+      estado: null,
+      blacklist: [],
+      useGeminiAnalysis: true,
+      dateRange: {
+        from: subDays(today, 7),
+        to: today,
+      },
+    };
+    handleApplyFilters(defaultFilters);
+  }, []);
+
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -178,6 +198,16 @@ export default function Home() {
                   id: toastId,
                   description: desc,
                   action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                });
+                break;
+              case 'modality_complete':
+                toast.success(`'${json.modalidade}' concluído!`, {
+                  description: `Todos os dados foram carregados para esta modalidade.`,
+                });
+                break;
+              case 'fetch_error':
+                toast.error("Falha na Busca", {
+                  description: json.message,
                 });
                 break;
               case 'start':

@@ -4,7 +4,7 @@ import { format, parseISO, differenceInDays, subDays } from 'date-fns';
 import { getCachedApiResult, setCachedApiResult } from './apiCache';
 
 export interface ProgressUpdate {
- type: 'info' | 'fetching';
+ type: 'info' | 'fetching' | 'modality_complete' | 'fetch_error';
  message: string;
  modalidade?: string;
  page?: number;
@@ -125,9 +125,17 @@ async function buscarLicitacoesPorModalidade(
     }
     attempt++;
     const status = (err as AxiosError)?.response?.status;
-    console.warn(`  ⚠️  Erro ao buscar modalidade ${modalidadeCode}, página ${currentPage} (tentativa ${attempt}/${maxRetries}, status: ${status || 'N/A'}).`);
+    const errorMessage = `Erro ao buscar ${modalidadeNome}, página ${currentPage} (status: ${status || 'N/A'}).`;
+    console.warn(`  ⚠️  ${errorMessage} (tentativa ${attempt}/${maxRetries})`);
+
     if (attempt >= maxRetries) {
-     console.error(`  ❌  Falha final ao buscar modalidade ${modalidadeCode}, página ${currentPage}. Pulando esta página.`);
+     console.error(`  ❌  Falha final ao buscar. Pulando esta página.`);
+     onProgress({
+      type: 'fetch_error',
+      message: `Falha ao carregar a página ${currentPage} de '${modalidadeNome}'. A busca continuará com os dados obtidos.`,
+      modalidade: modalidadeNome,
+      page: currentPage,
+     });
     } else {
      await delay(1000 * attempt);
     }
@@ -135,6 +143,13 @@ async function buscarLicitacoesPorModalidade(
   }
   currentPage++;
  }
+
+ onProgress({
+  type: 'modality_complete',
+  message: `Busca por ${modalidadeNome} concluída.`,
+  modalidade: modalidadeNome,
+ });
+
  return licitacoesDaModalidade;
 }
 

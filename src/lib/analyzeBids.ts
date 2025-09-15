@@ -25,7 +25,6 @@ function extractJsonFromString(text: string): string | null {
   return null;
 }
 
-
 async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -82,7 +81,6 @@ export async function analyzeAndFilterBids(
   const bidsToAnalyze: PncpLicitacao[] = [];
   const cachedViableBids: PncpLicitacao[] = [];
 
-  console.log(`🔍 Verificando cache para ${licitacoes.length} licitações...`);
   for (const lic of licitacoes) {
     const cachedResult = getCachedAnalysis(lic.numeroControlePNCP);
     if (cachedResult === true) {
@@ -92,9 +90,6 @@ export async function analyzeAndFilterBids(
     }
   }
 
-  console.log(`✅ ${cachedViableBids.length} licitações viáveis encontradas no cache.`);
-  console.log(`🧠 ${bidsToAnalyze.length} licitações restantes para análise com IA.`);
-
   if (bidsToAnalyze.length === 0) {
     onProgress({ type: 'complete', message: `Análise concluída. ${cachedViableBids.length} licitações viáveis encontradas no cache.` });
     return cachedViableBids;
@@ -102,13 +97,11 @@ export async function analyzeAndFilterBids(
 
   const allViableBids: PncpLicitacao[] = [...cachedViableBids];
   const CHUNK_SIZE = 150;
-  const chunks = [];
-  for (let i = 0; i < bidsToAnalyze.length; i += CHUNK_SIZE) {
-    chunks.push(bidsToAnalyze.slice(i, i + CHUNK_SIZE));
-  }
+  const chunks = Array.from({ length: Math.ceil(bidsToAnalyze.length / CHUNK_SIZE) }, (_, i) =>
+    bidsToAnalyze.slice(i * CHUNK_SIZE, i * CHUNK_SIZE + CHUNK_SIZE)
+  );
   const totalChunks = chunks.length;
 
-  console.log(`🧠 Iniciando análise de ${bidsToAnalyze.length} licitações em ${totalChunks} lotes de até ${CHUNK_SIZE}.`);
   onProgress({
     type: 'start',
     message: `Analisando ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações com IA...`,
@@ -166,6 +159,7 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 </BIDS_TO_ANALYZE>
 <OUTPUT_JSON>
 `;
+
     try {
       onProgress({
         type: 'progress',
@@ -190,15 +184,15 @@ ${JSON.stringify(simplifiedBids, null, 2)}
               setCachedAnalysis(lic.numeroControlePNCP, isViable);
               return isViable;
             });
-
             allViableBids.push(...filteredChunk);
+
           } catch (parseError) {
             console.error(`❌ Erro de parse JSON no lote ${chunkNumber} mesmo após extração:`, parseError);
             console.error('JSON extraído que falhou:', jsonText);
             chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
           }
         } else {
-          console.warn(`⚠️ Não foi possível extrair JSON da resposta do lote ${chunkNumber}.`);
+          console.warn(`⚠️ Não foi possível extrair JSON da resposta do lote ${chunkNumber}. Resposta crua:`, rawText);
           chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
         }
       } else {

@@ -31,7 +31,9 @@ export async function POST(request: Request) {
         const encoder = new TextEncoder();
         const enqueue = (data: object) => {
           try {
-            controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+            if (controller.desiredSize !== null) {
+              controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+            }
           } catch (e) {
             console.error('Erro ao enfileirar dados no stream:', e);
           }

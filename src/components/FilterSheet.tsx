@@ -295,7 +295,15 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
         </Button>
        </PopoverTrigger>
        <PopoverContent className="w-auto p-0" align="start">
-        <Calendar initialFocus mode="range" selected={date} onSelect={setDate} numberOfMonths={1} locale={ptBR} />
+        <Calendar
+         initialFocus
+         mode="range"
+         selected={date}
+         onSelect={setDate}
+         numberOfMonths={1}
+         locale={ptBR}
+         toDate={new Date()}
+        />
        </PopoverContent>
       </Popover>
      </div>

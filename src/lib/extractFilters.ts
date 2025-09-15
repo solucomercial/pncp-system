@@ -27,16 +27,26 @@ async function generateContentWithRetry(model: GenerativeModel, prompt: string, 
     try {
       const result = await model.generateContent(prompt);
       return result;
-    } catch (error) {
-      if (error instanceof GoogleGenerativeAIError && error.message.includes('503')) {
-        attempt++;
-        if (attempt >= maxRetries) {
-          console.error(`❌ Falha na chamada ao Gemini após ${maxRetries} tentativas. Último erro:`, error);
-          throw new Error(`O serviço de IA está temporariamente sobrecarregado. Por favor, tente novamente em alguns instantes. (Error: 503)`);
+    } catch (error: unknown) {
+      if (error instanceof GoogleGenerativeAIError) {
+        const message = error.message.toLowerCase();
+        const isOverloaded = message.includes('503') || message.includes('service unavailable');
+        const isRateLimited = message.includes('429') || message.includes('rate limit');
+
+        if (isOverloaded || isRateLimited) {
+          attempt++;
+          const delay = isRateLimited ? 61000 : Math.pow(2, attempt) * 1000;
+
+          if (attempt >= maxRetries) {
+            console.error(`❌ Falha na chamada ao Gemini após ${maxRetries} tentativas. Último erro:`, error);
+            throw new Error(`O serviço de IA está temporariamente indisponível. Por favor, tente novamente mais tarde.`);
+          }
+
+          console.warn(`⚠️ Serviço do Gemini indisponível (Sobrecarga: ${isOverloaded}, Limite de Taxa: ${isRateLimited}). Tentando novamente em ${delay / 1000}s... (Tentativa ${attempt}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          throw error;
         }
-        const delay = Math.pow(2, attempt) * 1000;
-        console.warn(`⚠️ Serviço do Gemini sobrecarregado (503). Tentando novamente em ${delay / 1000}s... (Tentativa ${attempt}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         throw error;
       }
