@@ -17,6 +17,15 @@ const model = genAI.getGenerativeModel({
   }
 });
 
+function extractJsonFromString(text: string): string | null {
+  const match = text.match(/```json\s*([\s\S]*?)\s*```|(\[[\s\S]*\]|\{[\s\S]*\})/);
+  if (match) {
+    return match[1] || match[2];
+  }
+  return null;
+}
+
+
 async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -97,18 +106,19 @@ export async function analyzeAndFilterBids(
   for (let i = 0; i < bidsToAnalyze.length; i += CHUNK_SIZE) {
     chunks.push(bidsToAnalyze.slice(i, i + CHUNK_SIZE));
   }
-  const totalChunks = chunks.length
+  const totalChunks = chunks.length;
 
   console.log(`🧠 Iniciando análise de ${bidsToAnalyze.length} licitações em ${totalChunks} lotes de até ${CHUNK_SIZE}.`);
   onProgress({
     type: 'start',
-    message: `Análise com IA iniciada para ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações.`,
+    message: `Analisando ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações com IA...`,
     total: bidsToAnalyze.length,
     totalChunks,
   });
 
-  const analysisPromises = chunks.map(async (chunk, index) => {
-    const chunkNumber = index + 1;
+  let chunkIndex = 0;
+  for (const chunk of chunks) {
+    const chunkNumber = chunkIndex + 1;
 
     const simplifiedBids = chunk.map(lic => ({
       numeroControlePNCP: lic.numeroControlePNCP,
@@ -123,7 +133,6 @@ export async function analyzeAndFilterBids(
 <MISSION>
 Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA (CNPJ 09.445.502/0001-09). Sua tarefa é analisar uma lista de licitações em formato JSON e retornar **APENAS** uma sub-lista, também em formato JSON, contendo somente as licitações que são genuinamente relevantes e viáveis para a empresa. Seja extremamente rigoroso e detalhista em sua análise.
 </MISSION>
-
 <COMPANY_PROFILE>
 **ÁREAS DE ATUAÇÃO ESTRATÉGICAS (O QUE BUSCAMOS):**
 1.  **Alimentação Coletiva**: Fornecimento de refeições em grande escala para presídios, hospitais e escolas (merenda). Termos como "alimentação prisional", "alimentação hospitalar", "merenda escolar", "refeições coletivas" são de alto interesse.
@@ -133,10 +142,8 @@ Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TER
 5.  **Manutenção Predial e Pequenas Reformas**: "manutenção preventiva", "manutenção corretiva", "pequenas obras de engenharia civil". **(Atenção: Veja a regra geográfica específica abaixo)**.
 6.  **Grandes Projetos**: "cogestão prisional", "PPP" (Parceria Público-Privada) e "concessões" nas nossas áreas de atuação.
 7.  **Modalidade de licitação**: "cogestão prisional", "PPP" (Parceria Público-Privada) e "concessões" nas nossas áreas de atuação.
-
 **REGRAS DE NEGÓCIO CONDICIONAIS (MUITO IMPORTANTE):**
 - **REGRA 1 - OBRAS APENAS EM SP**: Licitações da área de "Manutenção Predial e Pequenas Reformas" ou qualquer outra que envolva "obras" ou "engenharia" só devem ser consideradas viáveis se o campo "ufSigla" for **"SP"**. Se for de qualquer outro estado, a licitação deve ser **descartada**.
-
 **CRITÉRIOS DE EXCLUSÃO (O QUE DEVEMOS IGNORAR):**
 - **Eventos**: Buffet, coquetel, festas, shows, decoração, fogos de artifício.
 - **Alimentação Específica/Varejo**: Compra de pães, bolos, doces, coffee break. O foco é em refeições completas.
@@ -146,7 +153,6 @@ Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TER
 - **Locação SEM Motorista**: Qualquer aluguel de veículos que não especifique claramente "com motorista" ou "com condutor".
 - **Objetos Genéricos ou Suspeitos**: "teste", "simulação", "credenciamento de imprensa".
 </COMPANY_PROFILE>
-
 <INSTRUCTIONS>
 1.  Para cada licitação na lista, verifique primeiro as **REGRAS DE NEGÓCIO CONDICIONAIS**.
 2.  Em seguida, analise o **contexto** do 'objetoCompra' para diferenciar a **prestação de um serviço** (nosso foco) da **compra de um produto** (fora do nosso foco).
@@ -155,55 +161,61 @@ Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TER
 5.  Se nenhuma licitação for viável após sua análise rigorosa, retorne um array vazio: [].
 6.  Não inclua explicações, apenas o JSON.
 </INSTRUCTIONS>
-
 <BIDS_TO_ANALYZE>
 ${JSON.stringify(simplifiedBids, null, 2)}
 </BIDS_TO_ANALYZE>
-
 <OUTPUT_JSON>
 `;
     try {
-      console.log(`🧠 Analisando lote ${chunkNumber} de ${totalChunks}...`);
       onProgress({
         type: 'progress',
         message: `Analisando lote ${chunkNumber} de ${totalChunks}...`,
         chunk: chunkNumber,
-        totalChunks: totalChunks,
+        totalChunks,
       });
 
       const result = await generateContentWithRetry(prompt);
       const response = await result.response;
-      const text = response.text();
+      const rawText = response.text();
 
-      if (text) {
-        const viableSimplifiedBids = JSON.parse(text) as { numeroControlePNCP: string }[];
-        const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
+      if (rawText) {
+        const jsonText = extractJsonFromString(rawText);
+        if (jsonText) {
+          try {
+            const viableSimplifiedBids = JSON.parse(jsonText) as { numeroControlePNCP: string }[];
+            const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
 
-        const filteredChunk = chunk.filter(lic => {
-          const isViable = viablePncpIds.has(lic.numeroControlePNCP);
-          setCachedAnalysis(lic.numeroControlePNCP, isViable);
-          return isViable;
-        });
+            const filteredChunk = chunk.filter(lic => {
+              const isViable = viablePncpIds.has(lic.numeroControlePNCP);
+              setCachedAnalysis(lic.numeroControlePNCP, isViable);
+              return isViable;
+            });
 
-        return filteredChunk;
-
+            allViableBids.push(...filteredChunk);
+          } catch (parseError) {
+            console.error(`❌ Erro de parse JSON no lote ${chunkNumber} mesmo após extração:`, parseError);
+            console.error('JSON extraído que falhou:', jsonText);
+            chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
+          }
+        } else {
+          console.warn(`⚠️ Não foi possível extrair JSON da resposta do lote ${chunkNumber}.`);
+          chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
+        }
       } else {
         chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
-        console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia. Todas as licitações do lote foram marcadas como não-viáveis.`);
-        return [];
+        console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia.`);
       }
     } catch (error) {
       chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
       console.error(`❌ Erro ao analisar o lote ${chunkNumber} com Gemini:`, error);
-      return [];
     }
-  });
 
-  const resultsFromAllChunks = await Promise.all(analysisPromises);
+    if (chunkNumber < totalChunks) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
 
-  resultsFromAllChunks.forEach(chunkResult => {
-    allViableBids.push(...chunkResult);
-  });
+    chunkIndex++;
+  }
 
   console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis (incluindo cache).`);
   return allViableBids;

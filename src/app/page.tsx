@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useSession, signIn } from "next-auth/react";
-import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react";
+import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -48,8 +48,9 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [selectedBids, setSelectedBids] = useState<string[]>([]);
-
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
@@ -103,7 +104,12 @@ export default function Home() {
   }, [filteredResults, currentPage, itemsPerPage]);
 
   const handleApplyFilters = async (filters: Filters) => {
-    console.log("Aplicando filtros do frontend:", filters);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     setIsLoading(true);
     setAllResults([]);
     setCurrentPage(1);
@@ -120,20 +126,23 @@ export default function Home() {
       return;
     }
 
-    const toastId = toast.loading("Iniciando busca...");
+    const toastId = toast.loading("Iniciando busca...", {
+      description: "Preparando filtros...",
+      action: {
+        label: "Cancelar",
+        onClick: () => abortControllerRef.current?.abort(),
+      },
+    });
 
     try {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filters }),
+        signal,
       });
 
-      if (!res.body) {
-        throw new Error("A resposta do servidor não pode ser lida.");
-      }
+      if (!res.body) throw new Error("A resposta do servidor não pode ser lida.");
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Falha na requisição para a API.');
@@ -157,13 +166,34 @@ export default function Home() {
             const json = JSON.parse(line);
             switch (json.type) {
               case 'info':
-                toast.loading(json.message, { id: toastId });
+                toast.loading("Buscando licitações...", {
+                  id: toastId,
+                  description: json.message,
+                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                });
+                break;
+              case 'fetching':
+                const desc = `${json.modalidade}: Página ${json.page} de ${json.totalPages || '...'}`;
+                toast.loading("Capturando dados do PNCP...", {
+                  id: toastId,
+                  description: desc,
+                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                });
                 break;
               case 'start':
-                toast.loading(json.message, { id: toastId });
+                toast.loading(json.message, {
+                  id: toastId,
+                  description: `Analisando 0 de ${json.total.toLocaleString('pt-BR')}...`,
+                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                });
                 break;
               case 'progress':
-                toast.loading(`Analisando lote ${json.chunk} de ${json.totalChunks}...`, { id: toastId });
+                const processed = (json.chunk - 1) * 150;
+                toast.loading(`Analisando ${json.totalChunks > 1 ? `lote ${json.chunk} de ${json.totalChunks}` : ''}`, {
+                  id: toastId,
+                  description: `Itens analisados: ${processed.toLocaleString('pt-BR')}...`,
+                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                });
                 break;
               case 'result':
                 setAllResults(json.resultados || []);
@@ -172,44 +202,46 @@ export default function Home() {
                 const totalFinal = json.totalFinal || 0;
 
                 if (totalFinal > 0) {
-                  if (useGemini) {
-                    toast.success("Análise concluída!", {
-                      id: toastId,
-                      description: `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações e encontrou ${totalFinal.toLocaleString('pt-BR')} viáveis.`
-                    });
-                  } else {
-                    toast.success("Busca concluída!", {
-                      id: toastId,
-                      description: `Foram encontradas ${totalFinal.toLocaleString('pt-BR')} licitações com os filtros aplicados.`
-                    });
-                  }
+                  const successMessage = useGemini
+                    ? `Análise concluída! ${totalFinal.toLocaleString('pt-BR')} licitações viáveis encontradas.`
+                    : `Busca concluída! ${totalFinal.toLocaleString('pt-BR')} licitações encontradas.`;
+
+                  toast.success(successMessage, {
+                    id: toastId,
+                    description: useGemini
+                      ? `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações.`
+                      : "Filtros aplicados com sucesso.",
+                  });
                 } else {
-                  if (useGemini && totalBruto > 0) {
-                    toast.info("Análise concluída", {
-                      id: toastId,
-                      description: `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações, mas nenhuma foi considerada viável.`
-                    });
-                  } else {
-                    toast.info("Nenhuma licitação encontrada", {
-                      id: toastId,
-                      description: "Nenhuma licitação foi encontrada com os filtros aplicados."
-                    });
-                  }
+                  const infoMessage = useGemini && totalBruto > 0
+                    ? `Nenhuma licitação viável encontrada após análise de ${totalBruto.toLocaleString('pt-BR')} itens.`
+                    : "Nenhuma licitação encontrada com os filtros aplicados.";
+
+                  toast.info("Nenhum resultado", {
+                    id: toastId,
+                    description: infoMessage,
+                  });
                 }
                 break;
               case 'error':
                 throw new Error(json.message);
             }
-          } catch (e) {
-            console.error("Erro ao processar o stream:", e, "Linha:", line);
-          }
+          } catch (e) { console.error("Erro ao processar o stream:", e, "Linha:", line); }
         }
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
-      toast.error("Erro na busca", { description: message, id: toastId });
+      const err = error as Error;
+      if (err.name === 'AbortError') {
+        toast.info("Busca cancelada", {
+          id: toastId,
+          description: "A operação foi cancelada pelo usuário.",
+        });
+      } else {
+        toast.error("Erro na busca", { description: err.message, id: toastId });
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   }
 
@@ -404,7 +436,6 @@ export default function Home() {
             </CardContent>
             {totalPages > 1 && (
               <CardFooter className="flex-col sm:flex-row items-center sm:justify-between gap-4">
-                {/* Alteração 3: Ocultar controles de paginação se "Todos" estiver selecionado */}
                 {itemsPerPage !== 'all' && (
                   <Pagination>
                     <PaginationContent>
@@ -419,7 +450,6 @@ export default function Home() {
                   </Pagination>
                 )}
                 <div className="flex items-center space-x-2 text-sm">
-                  {/* Alteração 4: Componente Select atualizado com a opção "Todos" */}
                   <Select
                     value={String(itemsPerPage)}
                     onValueChange={(value) => {
@@ -431,10 +461,10 @@ export default function Home() {
                       <SelectValue placeholder={itemsPerPage === 'all' ? 'Todos' : itemsPerPage} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10 por página</SelectItem>
-                      <SelectItem value="20">20 por página</SelectItem>
-                      <SelectItem value="50">50 por página</SelectItem>
-                      <SelectItem value="100">100 por página</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
                       <SelectItem value="all">Todos</SelectItem>
                     </SelectContent>
                   </Select>

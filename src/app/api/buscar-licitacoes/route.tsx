@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { buscarLicitacoesPNCP } from '@/lib/comprasApi';
+import { buscarLicitacoesPNCP, ProgressUpdate } from '@/lib/comprasApi';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 import { getServerSession } from "next-auth/next";
@@ -16,19 +16,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
+  const abortController = new AbortController();
+  request.signal.addEventListener('abort', () => {
+    abortController.abort();
+  });
+
   try {
     const body: RequestBody = await request.json();
     const { filters } = body;
-
-    console.log("▶️ Rota da API recebendo filtros do frontend:", filters);
-
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         const enqueue = (data: object) => {
-          controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+          try {
+            controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+          } catch (e) {
+            console.error('Erro ao enfileirar dados no stream:', e);
+          }
+        };
+
+        const onApiProgress = (update: ProgressUpdate) => {
+          enqueue(update);
         };
 
         try {
@@ -43,19 +53,22 @@ export async function POST(request: Request) {
             blacklist: filters.blacklist,
           };
 
-          enqueue({ type: 'info', message: 'Buscando licitações no PNCP...' });
-          const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters);
+          enqueue({ type: 'info', message: 'Iniciando busca no PNCP...' });
+          const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters, onApiProgress, abortController.signal);
+
+          if (abortController.signal.aborted) {
+            enqueue({ type: 'info', message: 'Busca cancelada.' });
+            return;
+          }
 
           if (!licitacoesResponse.success || !licitacoesResponse.data?.data) {
             throw new Error(licitacoesResponse.error || 'Falha ao buscar licitações no PNCP');
           }
 
           const licitacoesBrutas = licitacoesResponse.data.data;
-          enqueue({ type: 'info', message: `Foram encontradas ${licitacoesBrutas.length.toLocaleString('pt-BR')} licitações.` });
 
           if (licitacoesBrutas.length === 0) {
             enqueue({ type: 'result', resultados: [], totalBruto: 0, totalFinal: 0 });
-            controller.close();
             return;
           }
 
@@ -65,17 +78,22 @@ export async function POST(request: Request) {
             });
             enqueue({ type: 'result', resultados: licitacoesViaveis, totalBruto: licitacoesBrutas.length, totalFinal: licitacoesViaveis.length });
           } else {
-            console.log("✅ Análise com Gemini desativada. Retornando resultados brutos.");
             enqueue({ type: 'result', resultados: licitacoesBrutas, totalBruto: licitacoesBrutas.length, totalFinal: licitacoesBrutas.length });
           }
         } catch (error: unknown) {
           const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
-          console.error("❌ Erro crítico ao processar requisição em /api/buscar-licitacoes:", error);
-          enqueue({ type: 'error', message: errorMessage });
+          console.error("❌ Erro no stream da API:", error);
+          if (!abortController.signal.aborted) {
+            enqueue({ type: 'error', message: errorMessage });
+          }
         } finally {
           controller.close();
         }
       },
+      cancel(reason) {
+        console.log('Stream cancelado pelo cliente:', reason);
+        abortController.abort();
+      }
     });
 
     return new Response(stream, {
@@ -88,7 +106,7 @@ export async function POST(request: Request) {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
-    console.error("❌ Erro crítico ao processar requisição em /api/buscar-licitacoes:", error);
+    console.error("❌ Erro crítico na rota /api/buscar-licitacoes:", error);
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
