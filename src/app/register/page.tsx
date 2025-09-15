@@ -48,9 +48,10 @@ export default function RegisterPage() {
     router.push("/login");
    }, 2000);
 
-  } catch (error: any) {
+  } catch (error) {
+   const message = error instanceof Error ? error.message : "Ocorreu um erro desconhecido";
    toast.error("Erro no Registo", {
-    description: error.message,
+    description: message,
    });
   } finally {
    setLoading(false);
