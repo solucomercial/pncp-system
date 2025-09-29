@@ -116,43 +116,34 @@ export async function analyzeAndFilterBids(
     const simplifiedBids = chunk.map(lic => ({
       numeroControlePNCP: lic.numeroControlePNCP,
       objetoCompra: lic.objetoCompra,
-      modalidadeNome: lic.modalidadeNome,
-      valorTotalEstimado: lic.valorTotalEstimado,
-      municipioNome: lic.unidadeOrgao?.municipioNome,
-      ufSigla: lic.unidadeOrgao?.ufSigla,
     }));
 
     const prompt = `
 <MISSION>
-Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA (CNPJ 09.445.502/0001-09). Sua tarefa é analisar uma lista de licitações em formato JSON e retornar **APENAS** uma sub-lista, também em formato JSON, contendo somente as licitações que são genuinamente relevantes e viáveis para a empresa. Seja extremamente rigoroso e detalhista em sua análise.
+Você é um analista de licitações sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA. Sua tarefa é analisar uma lista de licitações e retornar uma sub-lista em JSON, contendo apenas as licitações que são relevantes e viáveis para a empresa.
 </MISSION>
 <COMPANY_PROFILE>
-**ÁREAS DE ATUAÇÃO ESTRATÉGICAS (O QUE BUSCAMOS):**
-1.  **Alimentação Coletiva**: Fornecimento de refeições em grande escala para presídios, hospitais e escolas (merenda). Termos como "alimentação prisional", "alimentação hospitalar", "merenda escolar", "refeições coletivas" são de alto interesse.
-2.  **Facilities e Mão de Obra**: Terceirização de serviços de apoio como "recepcionista", "porteiro", "copeiragem", "serviços gerais", "apoio administrativo".
-3.  **Limpeza e Conservação Profissional**: "limpeza predial", "limpeza hospitalar", "higienização de ambientes". O foco é em contratos de serviço contínuo.
-4.  **Locação de Frota COM Motorista**: Apenas "locação de veículos com condutor" ou "transporte de passageiros".
-5.  **Manutenção Predial e Pequenas Reformas**: "manutenção preventiva", "manutenção corretiva", "pequenas obras de engenharia civil". **(Atenção: Veja a regra geográfica específica abaixo)**.
-6.  **Grandes Projetos**: "cogestão prisional", "PPP" (Parceria Público-Privada) e "concessões" nas nossas áreas de atuação.
-7.  **Modalidade de licitação**: "cogestão prisional", "PPP" (Parceria Público-Privada) e "concessões" nas nossas áreas de atuação.
-**REGRAS DE NEGÓCIO CONDICIONAIS (MUITO IMPORTANTE):**
-- **REGRA 1 - OBRAS APENAS EM SP**: Licitações da área de "Manutenção Predial e Pequenas Reformas" ou qualquer outra que envolva "obras" ou "engenharia" só devem ser consideradas viáveis se o campo "ufSigla" for **"SP"**. Se for de qualquer outro estado, a licitação deve ser **descartada**.
-**CRITÉRIOS DE EXCLUSÃO (O QUE DEVEMOS IGNORAR):**
-- **Eventos**: Buffet, coquetel, festas, shows, decoração, fogos de artifício.
-- **Alimentação Específica/Varejo**: Compra de pães, bolos, doces, coffee break. O foco é em refeições completas.
-- **Insumos de Saúde**: Aquisição de "medicamentos", "materiais hospitalares", "produtos farmacêuticos", "equipamentos médicos". O foco da empresa é na prestação de serviços, e não no fornecimento de insumos hospitalares.
+**ÁREAS DE ATUAÇÃO ESTRATÉGICAS:**
+1.  **Alimentação Coletiva**: Refeições em grande escala para presídios, hospitais e escolas.
+2.  **Facilities e Mão de Obra**: Terceirização de serviços de apoio (recepcionista, porteiro, etc.).
+3.  **Limpeza e Conservação Profissional**: Limpeza predial e hospitalar.
+4.  **Locação de Frota COM Motorista**.
+5.  **Manutenção Predial e Pequenas Reformas (Apenas em SP)**.
+6.  **Grandes Projetos**: Cogestão prisional, PPP e concessões.
+
+**CRITÉRIOS DE EXCLUSÃO:**
+- **Eventos**: Buffet, festas, shows.
+- **Alimentação Específica/Varejo**: Compra de pães, bolos, doces, coffee break.
+- **Insumos de Saúde**: Aquisição de medicamentos, materiais hospitalares, equipamentos médicos.
 - **Obras de Grande Porte/Especializadas**: Construção de pontes, viadutos, recapeamento asfáltico.
-- **Serviços que Não Prestamos**: Controle de pragas (dedetização), segurança patrimonial/vigilância armada, consultoria, assessoria, leilões de bens, serviços veterinários, hotelaria, lavagem de veículos.
-- **Locação SEM Motorista**: Qualquer aluguel de veículos que não especifique claramente "com motorista" ou "com condutor".
-- **Objetos Genéricos ou Suspeitos**: "teste", "simulação", "credenciamento de imprensa".
+- **Serviços que Não Prestamos**: Controle de pragas, segurança patrimonial, consultoria, leilões.
+- **Locação SEM Motorista**.
 </COMPANY_PROFILE>
 <INSTRUCTIONS>
-1.  Para cada licitação na lista, verifique primeiro as **REGRAS DE NEGÓCIO CONDICIONAIS**.
-2.  Em seguida, analise o **contexto** do 'objetoCompra' para diferenciar a **prestação de um serviço** (nosso foco) da **compra de um produto** (fora do nosso foco).
-3.  Verifique os **CRITÉRIOS DE EXCLUSÃO**.
-4.  Sua única saída deve ser um array JSON contendo os objetos das licitações que você aprovou.
-5.  Se nenhuma licitação for viável após sua análise rigorosa, retorne um array vazio: [].
-6.  Não inclua explicações, apenas o JSON.
+1.  Para cada licitação, verifique se o 'objetoCompra' se encaixa em nossas áreas de atuação.
+2.  Verifique a regra geográfica para obras.
+3.  Sua única saída deve ser um array JSON contendo os objetos das licitações que você aprovou.
+4.  Se nenhuma licitação for viável, retorne um array vazio: [].
 </INSTRUCTIONS>
 <BIDS_TO_ANALYZE>
 ${JSON.stringify(simplifiedBids, null, 2)}
