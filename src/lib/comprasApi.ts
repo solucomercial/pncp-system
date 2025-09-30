@@ -137,7 +137,14 @@ async function buscarLicitacoesPorModalidade(
       page: currentPage,
      });
     } else {
-     await delay(1000 * attempt);
+     const axiosError = err as AxiosError;
+     if (axiosError.response?.headers['retry-after']) {
+      const retryAfterSeconds = parseInt(axiosError.response.headers['retry-after'], 10);
+      console.warn(`  🕒  A API solicitou uma espera de ${retryAfterSeconds} segundos.`);
+      await delay(retryAfterSeconds * 1000);
+     } else {
+      await delay(1000 * attempt);
+     }
     }
    }
   }
