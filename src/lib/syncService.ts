@@ -1,14 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { subDays, format } from "date-fns";
-import { pncpApi, handleApiError } from "./comprasApi";
+import { pncpApi } from "./comprasApi";
 import { PncpLicitacao } from "./types";
 
 const prisma = new PrismaClient();
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
-/**
- * Mapeia os dados da API para o schema do Prisma.
- */
+// (As funções mapLicitacaoToPrisma e fetchLicitacoesFromPNCP continuam iguais)
 function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
  return {
   numeroControlePNCP: licitacao.numeroControlePNCP,
@@ -21,6 +19,7 @@ function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
   objetoCompra: licitacao.objetoCompra,
   informacaoComplementar: licitacao.informacaoComplementar,
   valorTotalEstimado: licitacao.valorTotalEstimado,
+  valorTotalHomologado: licitacao.valorTotalHomologado,
   dataAberturaProposta: licitacao.dataAberturaProposta ? new Date(licitacao.dataAberturaProposta) : null,
   dataEncerramentoProposta: licitacao.dataEncerramentoProposta ? new Date(licitacao.dataEncerramentoProposta) : null,
   dataPublicacaoPncp: new Date(licitacao.dataPublicacaoPncp),
@@ -32,12 +31,12 @@ function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
   nomeUnidadeOrgao: licitacao.unidadeOrgao.nomeUnidade,
   municipioNomeUnidadeOrgao: licitacao.unidadeOrgao.municipioNome,
   ufSiglaUnidadeOrgao: licitacao.unidadeOrgao.ufSigla,
+  linkSistemaOrigem: licitacao.linkSistemaOrigem,
+  srp: licitacao.srp,
+  amparoLegalNome: licitacao.amparoLegal?.nome,
  };
 }
 
-/**
- * Busca licitações de uma data específica na API do PNCP.
- */
 async function fetchLicitacoesFromPNCP(data: Date): Promise<PncpLicitacao[]> {
  console.log(`[SyncService] Buscando licitações para a data: ${format(data, "yyyy-MM-dd")}`);
  const dataFormatada = format(data, "yyyyMMdd");
@@ -66,15 +65,14 @@ async function fetchLicitacoesFromPNCP(data: Date): Promise<PncpLicitacao[]> {
      }
      console.log(`[SyncService] Modalidade ${modalidade}: Página ${pagina}/${totalPaginas} carregada.`);
     } else {
-     break; // Sai do loop se não houver mais dados
+     break;
     }
 
     pagina++;
-    // Adiciona um pequeno delay para não sobrecarregar a API
     await new Promise(resolve => setTimeout(resolve, 500));
    } catch (error) {
     console.error(`[SyncService] Erro ao buscar Modalidade ${modalidade}, Página ${pagina}. Tentando novamente...`, error);
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Espera 5 segundos antes de tentar novamente a mesma página
+    await new Promise(resolve => setTimeout(resolve, 5000));
    }
   }
  }
@@ -83,9 +81,6 @@ async function fetchLicitacoesFromPNCP(data: Date): Promise<PncpLicitacao[]> {
  return todasLicitacoes;
 }
 
-/**
- * Salva ou atualiza uma lista de licitações no banco de dados.
- */
 async function upsertLicitacoes(licitacoes: PncpLicitacao[]) {
  if (licitacoes.length === 0) {
   console.log("[SyncService] Nenhuma licitação para salvar.");
@@ -103,14 +98,10 @@ async function upsertLicitacoes(licitacoes: PncpLicitacao[]) {
   });
  });
 
- // Executa todas as operações de upsert em uma única transação
  await prisma.$transaction(transacoes);
  console.log("[SyncService] Dados salvos com sucesso.");
 }
 
-/**
- * Remove licitações com data de publicação maior que 30 dias.
- */
 async function cleanupOldLicitacoes() {
  const dataLimite = subDays(new Date(), 30);
  console.log(`[SyncService] Removendo licitações publicadas antes de ${format(dataLimite, "yyyy-MM-dd")}`);
@@ -126,28 +117,43 @@ async function cleanupOldLicitacoes() {
  console.log(`[SyncService] ${result.count} licitações antigas removidas.`);
 }
 
-/**
- * Função principal que orquestra a sincronização.
- */
-export async function runSync() {
- console.log("--- [SyncService] INICIANDO SINCRONIZAÇÃO DIÁRIA ---");
- try {
-  // 1. Busca as licitações do dia anterior
-  const ontem = subDays(new Date(), 1);
-  const licitacoesDoDia = await fetchLicitacoesFromPNCP(ontem);
 
-  // 2. Salva os dados no banco
-  await upsertLicitacoes(licitacoesDoDia);
+// --- AJUSTE PARA CARGA INICIAL ---
+export async function runSync(isInitialLoad: boolean = false) {
+ console.log(`--- [SyncService] INICIANDO SINCRONIZAÇÃO (${isInitialLoad ? 'CARGA INICIAL' : 'DIÁRIA'}) ---`);
 
-  // 3. Limpa os dados antigos
-  await cleanupOldLicitacoes();
-
-  console.log("--- [SyncService] SINCRONIZAÇÃO CONCLUÍDA COM SUCESSO ---");
-  return { success: true, message: `Sincronização concluída. ${licitacoesDoDia.length} licitações processadas.` };
- } catch (error) {
-  console.error("--- [SyncService] ERRO CRÍTICO DURANTE A SINCRONIZAÇÃO ---", error);
-  return { success: false, message: "Ocorreu um erro durante a sincronização." };
- } finally {
-  await prisma.$disconnect();
+ if (isInitialLoad) {
+  // --- LÓGICA PARA CARGA INICIAL (30 dias) ---
+  console.log("[SyncService] Executando carga inicial dos últimos 30 dias.");
+  for (let i = 1; i <= 30; i++) {
+   const targetDate = subDays(new Date(), i);
+   try {
+    console.log(`\n--- Processando dia ${i}/30: ${format(targetDate, 'dd/MM/yyyy')} ---`);
+    const licitacoesDoDia = await fetchLicitacoesFromPNCP(targetDate);
+    await upsertLicitacoes(licitacoesDoDia);
+   } catch (error) {
+    console.error(`[SyncService] Erro crítico ao processar a data ${format(targetDate, 'dd/MM/yyyy')}. Continuando para o próximo dia.`, error);
+   }
+  }
+ } else {
+  // --- LÓGICA PARA SINCRONIZAÇÃO DIÁRIA (padrão) ---
+  try {
+   const ontem = subDays(new Date(), 1);
+   const licitacoesDoDia = await fetchLicitacoesFromPNCP(ontem);
+   await upsertLicitacoes(licitacoesDoDia);
+  } catch (error) {
+   console.error("[SyncService] Erro crítico durante a busca diária.", error);
+  }
  }
+
+ // A limpeza ocorre em ambos os casos para manter a consistência
+ try {
+  await cleanupOldLicitacoes();
+ } catch (error) {
+  console.error("[SyncService] Erro crítico durante a limpeza de dados antigos.", error);
+ }
+
+ console.log("--- [SyncService] SINCRONIZAÇÃO CONCLUÍDA ---");
+ await prisma.$disconnect();
+ return { success: true, message: "Sincronização concluída." };
 }
