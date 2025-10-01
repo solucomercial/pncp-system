@@ -6,38 +6,75 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// Model para Licitações do PNCP
+model Licitacao {
+  id                        String    @id @default(cuid())
+  numeroControlePNCP        String    @unique
+  numeroCompra              String
+  anoCompra                 Int
+  processo                  String?   @db.Text
+  modalidadeNome            String
+  modoDisputaNome           String?
+  situacaoCompraNome        String
+  objetoCompra              String    @db.Text
+  informacaoComplementar    String?   @db.Text
+  valorTotalEstimado        Float?
+  valorTotalHomologado      Float?    // NOVO
+  dataAberturaProposta      DateTime?
+  dataEncerramentoProposta  DateTime?
+  dataPublicacaoPncp        DateTime
+  dataInclusao              DateTime
+  dataAtualizacao           DateTime
+  cnpjOrgaoEntidade         String
+  razaoSocialOrgaoEntidade  String
+  codigoUnidadeOrgao        String
+  nomeUnidadeOrgao          String
+  municipioNomeUnidadeOrgao String
+  ufSiglaUnidadeOrgao       String
+  linkSistemaOrigem         String?   @db.Text // NOVO
+  srp                       Boolean   // NOVO
+  amparoLegalNome           String?   // NOVO
+
+  @@index([dataPublicacaoPncp])
+  @@index([ufSiglaUnidadeOrgao])
+  @@index([modalidadeNome])
+}
+
+// --- Modelos de Autenticação (NextAuth.js) ---
+
 model Account {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String  @db.ObjectId
+  id                String  @id @default(cuid())
+  userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.String
-  access_token      String? @db.String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.String
+  id_token          String? @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       String   @db.ObjectId
+  userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
   password      String?
@@ -48,7 +85,6 @@ model User {
 }
 
 model VerificationToken {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String
   token      String   @unique
   expires    DateTime

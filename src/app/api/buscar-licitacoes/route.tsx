@@ -1,76 +1,112 @@
 import { NextResponse } from 'next/server';
-import { buscarLicitacoesPNCP, ProgressUpdate } from '@/lib/comprasApi';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { PncpLicitacao } from '@/lib/types';
 
-interface RequestBody {
-  filters: Filters;
+const prisma = new PrismaClient();
+
+function mapPrismaToPncp(licitacao: any): PncpLicitacao {
+  return {
+    ...licitacao,
+    orgaoEntidade: {
+      cnpj: licitacao.cnpjOrgaoEntidade,
+      razaoSocial: licitacao.razaoSocialOrgaoEntidade,
+      poderId: '',
+      esferaId: '',
+    },
+    unidadeOrgao: {
+      codigoUnidade: licitacao.codigoUnidadeOrgao,
+      nomeUnidade: licitacao.nomeUnidadeOrgao,
+      municipioNome: licitacao.municipioNomeUnidadeOrgao,
+      ufSigla: licitacao.ufSiglaUnidadeOrgao,
+      ufNome: '',
+      codigoIbge: 0,
+    },
+    // Adicione valores padrão para outros campos obrigatórios que não estão no seu schema
+    tipoInstrumentoConvocatorioId: 0,
+    tipoInstrumentoConvocatorioNome: '',
+    modalidadeId: 0,
+    modoDisputaId: 0,
+    situacaoCompraId: 0,
+    srp: false,
+    sequencialCompra: 0,
+  };
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-
   if (!session) {
     return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
   }
 
-  const abortController = new AbortController();
-  request.signal.addEventListener('abort', () => {
-    abortController.abort();
-  });
-
   try {
-    const body: RequestBody = await request.json();
+    const body: { filters: Filters } = await request.json();
     const { filters } = body;
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
+    // 1. Construir a query do Prisma dinamicamente com base nos filtros
+    const where: Prisma.LicitacaoWhereInput = {
+      AND: [],
+    };
+
+    if (filters.dateRange?.from) {
+      where.AND.push({ dataPublicacaoPncp: { gte: new Date(filters.dateRange.from) } });
+    }
+    if (filters.dateRange?.to) {
+      where.AND.push({ dataPublicacaoPncp: { lte: new Date(filters.dateRange.to) } });
+    }
+    if (filters.estado) {
+      where.AND.push({ ufSiglaUnidadeOrgao: filters.estado });
+    }
+    if (filters.modalidades && filters.modalidades.length > 0) {
+      where.AND.push({ modalidadeNome: { in: filters.modalidades, mode: 'insensitive' } });
+    }
+    if (filters.valorMin) {
+      where.AND.push({ valorTotalEstimado: { gte: parseFloat(filters.valorMin) } });
+    }
+    if (filters.valorMax) {
+      where.AND.push({ valorTotalEstimado: { lte: parseFloat(filters.valorMax) } });
+    }
+    if (filters.palavrasChave && filters.palavrasChave.length > 0) {
+      where.AND.push({
+        objetoCompra: {
+          contains: filters.palavrasChave.join(' & '), // Busca por palavras-chave no objeto
+          mode: 'insensitive',
+        },
+      });
+    }
+    if (filters.blacklist && filters.blacklist.length > 0) {
+      where.NOT = filters.blacklist.map(term => ({
+        objetoCompra: {
+          contains: term,
+          mode: 'insensitive',
+        },
+      }));
+    }
+
+    // 2. Executar a busca no banco de dados
+    const licitacoesBrutasDoDB = await prisma.licitacao.findMany({
+      where,
+      orderBy: {
+        dataPublicacaoPncp: 'desc',
+      },
+    });
+
+    const licitacoesBrutas = licitacoesBrutasDoDB.map(mapPrismaToPncp);
+
+    // O streaming agora é usado apenas para a análise do Gemini
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
-        const enqueue = (data: object) => {
-          try {
-            if (controller.desiredSize !== null) {
-              controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
-            }
-          } catch (e) {
-            console.error('Erro ao enfileirar dados no stream:', e);
-          }
-        };
-
-        const onApiProgress = (update: ProgressUpdate) => {
-          enqueue(update);
-        };
+        const enqueue = (data: object) => controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
 
         try {
-          const mappedFilters = {
-            palavrasChave: filters.palavrasChave,
-            valorMin: filters.valorMin ? parseFloat(filters.valorMin) : null,
-            valorMax: filters.valorMax ? parseFloat(filters.valorMax) : null,
-            estado: filters.estado,
-            modalidades: filters.modalidades,
-            dataInicial: filters.dateRange?.from ? new Date(filters.dateRange.from).toISOString() : null,
-            dataFinal: filters.dateRange?.to ? new Date(filters.dateRange.to).toISOString() : null,
-            blacklist: filters.blacklist,
-          };
-
-          enqueue({ type: 'info', message: 'Iniciando busca no PNCP...' });
-          const licitacoesResponse = await buscarLicitacoesPNCP(mappedFilters, onApiProgress, abortController.signal);
-
-          if (abortController.signal.aborted) {
-            enqueue({ type: 'info', message: 'Busca cancelada.' });
-            return;
-          }
-
-          if (!licitacoesResponse.success || !licitacoesResponse.data?.data) {
-            throw new Error(licitacoesResponse.error || 'Falha ao buscar licitações no PNCP');
-          }
-
-          const licitacoesBrutas = licitacoesResponse.data.data;
-
           if (licitacoesBrutas.length === 0) {
             enqueue({ type: 'result', resultados: [], totalBruto: 0, totalFinal: 0 });
+            controller.close();
             return;
           }
 
@@ -82,20 +118,14 @@ export async function POST(request: Request) {
           } else {
             enqueue({ type: 'result', resultados: licitacoesBrutas, totalBruto: licitacoesBrutas.length, totalFinal: licitacoesBrutas.length });
           }
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
           console.error("❌ Erro no stream da API:", error);
-          if (!abortController.signal.aborted) {
-            enqueue({ type: 'error', message: errorMessage });
-          }
+          enqueue({ type: 'error', message: errorMessage });
         } finally {
           controller.close();
         }
       },
-      cancel(reason) {
-        console.log('Stream cancelado pelo cliente:', reason);
-        abortController.abort();
-      }
     });
 
     return new Response(stream, {
@@ -106,7 +136,7 @@ export async function POST(request: Request) {
       },
     });
 
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
     console.error("❌ Erro crítico na rota /api/buscar-licitacoes:", error);
     return NextResponse.json({ message: errorMessage }, { status: 500 });
