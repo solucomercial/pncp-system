@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, Licitacao } from '@prisma/client'; // Importar o tipo Licitacao
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 import { getServerSession } from "next-auth/next";
@@ -8,31 +8,43 @@ import { PncpLicitacao } from '@/lib/types';
 
 const prisma = new PrismaClient();
 
-function mapPrismaToPncp(licitacao: any): PncpLicitacao {
+// AQUI ESTÁ A CORREÇÃO: Trocamos 'any' por 'Licitacao'
+function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
   return {
     ...licitacao,
+    valorTotalEstimado: licitacao.valorTotalEstimado ?? undefined,
+    valorTotalHomologado: licitacao.valorTotalHomologado ?? undefined,
+    processo: licitacao.processo ?? undefined,
+    informacaoComplementar: licitacao.informacaoComplementar ?? undefined,
+    modoDisputaNome: licitacao.modoDisputaNome ?? '',
+    dataAberturaProposta: licitacao.dataAberturaProposta?.toISOString(),
+    dataEncerramentoProposta: licitacao.dataEncerramentoProposta?.toISOString(),
+    dataPublicacaoPncp: licitacao.dataPublicacaoPncp.toISOString(),
+    dataInclusao: licitacao.dataInclusao.toISOString(),
+    dataAtualizacao: licitacao.dataAtualizacao.toISOString(),
+    linkSistemaOrigem: licitacao.linkSistemaOrigem ?? undefined,
+    amparoLegalNome: licitacao.amparoLegalNome ?? undefined,
+    justificativaPresencial: licitacao.justificativaPresencial ?? undefined,
+    sequencialCompra: licitacao.sequencialCompra ?? 0,
     orgaoEntidade: {
       cnpj: licitacao.cnpjOrgaoEntidade,
       razaoSocial: licitacao.razaoSocialOrgaoEntidade,
-      poderId: '',
-      esferaId: '',
+      poderId: '', // Campo não presente no schema do DB
+      esferaId: '', // Campo não presente no schema do DB
     },
     unidadeOrgao: {
       codigoUnidade: licitacao.codigoUnidadeOrgao,
       nomeUnidade: licitacao.nomeUnidadeOrgao,
       municipioNome: licitacao.municipioNomeUnidadeOrgao,
       ufSigla: licitacao.ufSiglaUnidadeOrgao,
-      ufNome: '',
-      codigoIbge: 0,
+      ufNome: '', // Campo não presente no schema do DB
+      codigoIbge: 0, // Campo não presente no schema do DB
     },
-    // Adicione valores padrão para outros campos obrigatórios que não estão no seu schema
-    tipoInstrumentoConvocatorioId: 0,
-    tipoInstrumentoConvocatorioNome: '',
-    modalidadeId: 0,
-    modoDisputaId: 0,
-    situacaoCompraId: 0,
-    srp: false,
-    sequencialCompra: 0,
+    tipoInstrumentoConvocatorioId: 0, // Campo não presente no schema do DB
+    tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome ?? '',
+    modalidadeId: 0, // Campo não presente no schema do DB
+    modoDisputaId: 0, // Campo não presente no schema do DB
+    situacaoCompraId: 0, // Campo não presente no schema do DB
   };
 }
 
@@ -48,44 +60,49 @@ export async function POST(request: Request) {
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
     // 1. Construir a query do Prisma dinamicamente com base nos filtros
-    const where: Prisma.LicitacaoWhereInput = {
-      AND: [],
-    };
+    const where: Prisma.LicitacaoWhereInput = {};
+    const andConditions: Prisma.LicitacaoWhereInput[] = [];
 
     if (filters.dateRange?.from) {
-      where.AND.push({ dataPublicacaoPncp: { gte: new Date(filters.dateRange.from) } });
+        andConditions.push({ dataPublicacaoPncp: { gte: new Date(filters.dateRange.from) } });
     }
     if (filters.dateRange?.to) {
-      where.AND.push({ dataPublicacaoPncp: { lte: new Date(filters.dateRange.to) } });
+        andConditions.push({ dataPublicacaoPncp: { lte: new Date(filters.dateRange.to) } });
     }
     if (filters.estado) {
-      where.AND.push({ ufSiglaUnidadeOrgao: filters.estado });
+        andConditions.push({ ufSiglaUnidadeOrgao: filters.estado });
     }
     if (filters.modalidades && filters.modalidades.length > 0) {
-      where.AND.push({ modalidadeNome: { in: filters.modalidades, mode: 'insensitive' } });
+        andConditions.push({ modalidadeNome: { in: filters.modalidades, mode: 'insensitive' } });
     }
     if (filters.valorMin) {
-      where.AND.push({ valorTotalEstimado: { gte: parseFloat(filters.valorMin) } });
+        andConditions.push({ valorTotalEstimado: { gte: parseFloat(filters.valorMin) } });
     }
     if (filters.valorMax) {
-      where.AND.push({ valorTotalEstimado: { lte: parseFloat(filters.valorMax) } });
+        andConditions.push({ valorTotalEstimado: { lte: parseFloat(filters.valorMax) } });
     }
     if (filters.palavrasChave && filters.palavrasChave.length > 0) {
-      where.AND.push({
+      const keywordConditions = filters.palavrasChave.map(kw => ({
         objetoCompra: {
-          contains: filters.palavrasChave.join(' & '), // Busca por palavras-chave no objeto
-          mode: 'insensitive',
-        },
-      });
-    }
-    if (filters.blacklist && filters.blacklist.length > 0) {
-      where.NOT = filters.blacklist.map(term => ({
-        objetoCompra: {
-          contains: term,
-          mode: 'insensitive',
+          contains: kw,
+          mode: 'insensitive' as const,
         },
       }));
+      andConditions.push({ OR: keywordConditions });
     }
+    if (filters.blacklist && filters.blacklist.length > 0) {
+        where.NOT = filters.blacklist.map(term => ({
+            objetoCompra: {
+                contains: term,
+                mode: 'insensitive',
+            },
+        }));
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
 
     // 2. Executar a busca no banco de dados
     const licitacoesBrutasDoDB = await prisma.licitacao.findMany({
@@ -93,6 +110,7 @@ export async function POST(request: Request) {
       orderBy: {
         dataPublicacaoPncp: 'desc',
       },
+      take: 5000, // Limite para evitar sobrecarga
     });
 
     const licitacoesBrutas = licitacoesBrutasDoDB.map(mapPrismaToPncp);

@@ -6,9 +6,10 @@ import { PncpLicitacao } from "./types";
 const prisma = new PrismaClient();
 const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
-// (As funções mapLicitacaoToPrisma e fetchLicitacoesFromPNCP continuam iguais)
+// Função ATUALIZADA para mapear os novos campos
 function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
  return {
+  // --- Campos existentes ---
   numeroControlePNCP: licitacao.numeroControlePNCP,
   numeroCompra: licitacao.numeroCompra,
   anoCompra: licitacao.anoCompra,
@@ -34,6 +35,14 @@ function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
   linkSistemaOrigem: licitacao.linkSistemaOrigem,
   srp: licitacao.srp,
   amparoLegalNome: licitacao.amparoLegal?.nome,
+
+  // --- NOVOS CAMPOS MAPEADOS ---
+  sequencialCompra: licitacao.sequencialCompra,
+  tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome,
+  justificativaPresencial: licitacao.justificativaPresencial,
+  // O ideal é adicionar estes campos no seu PncpLicitacao type em /lib/types.ts também
+  linkProcessoEletronico: (licitacao as any).linkProcessoEletronico, 
+  dataAtualizacaoGlobal: (licitacao as any).dataAtualizacaoGlobal ? new Date((licitacao as any).dataAtualizacaoGlobal) : null,
  };
 }
 
@@ -117,13 +126,10 @@ async function cleanupOldLicitacoes() {
  console.log(`[SyncService] ${result.count} licitações antigas removidas.`);
 }
 
-
-// --- AJUSTE PARA CARGA INICIAL ---
 export async function runSync(isInitialLoad: boolean = false) {
  console.log(`--- [SyncService] INICIANDO SINCRONIZAÇÃO (${isInitialLoad ? 'CARGA INICIAL' : 'DIÁRIA'}) ---`);
 
  if (isInitialLoad) {
-  // --- LÓGICA PARA CARGA INICIAL (30 dias) ---
   console.log("[SyncService] Executando carga inicial dos últimos 30 dias.");
   for (let i = 1; i <= 30; i++) {
    const targetDate = subDays(new Date(), i);
@@ -136,7 +142,6 @@ export async function runSync(isInitialLoad: boolean = false) {
    }
   }
  } else {
-  // --- LÓGICA PARA SINCRONIZAÇÃO DIÁRIA (padrão) ---
   try {
    const ontem = subDays(new Date(), 1);
    const licitacoesDoDia = await fetchLicitacoesFromPNCP(ontem);
@@ -146,7 +151,6 @@ export async function runSync(isInitialLoad: boolean = false) {
   }
  }
 
- // A limpeza ocorre em ambos os casos para manter a consistência
  try {
   await cleanupOldLicitacoes();
  } catch (error) {

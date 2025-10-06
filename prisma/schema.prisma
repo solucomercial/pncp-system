@@ -12,32 +12,36 @@ datasource db {
 
 // Model para Licitações do PNCP
 model Licitacao {
-  id                        String    @id @default(cuid())
-  numeroControlePNCP        String    @unique
-  numeroCompra              String
-  anoCompra                 Int
-  processo                  String?   @db.Text
-  modalidadeNome            String
-  modoDisputaNome           String?
-  situacaoCompraNome        String
-  objetoCompra              String    @db.Text
-  informacaoComplementar    String?   @db.Text
-  valorTotalEstimado        Float?
-  valorTotalHomologado      Float?    // NOVO
-  dataAberturaProposta      DateTime?
-  dataEncerramentoProposta  DateTime?
-  dataPublicacaoPncp        DateTime
-  dataInclusao              DateTime
-  dataAtualizacao           DateTime
-  cnpjOrgaoEntidade         String
-  razaoSocialOrgaoEntidade  String
-  codigoUnidadeOrgao        String
-  nomeUnidadeOrgao          String
-  municipioNomeUnidadeOrgao String
-  ufSiglaUnidadeOrgao       String
-  linkSistemaOrigem         String?   @db.Text // NOVO
-  srp                       Boolean   // NOVO
-  amparoLegalNome           String?   // NOVO
+  id                              String    @id @default(cuid())
+  numeroControlePNCP              String    @unique
+  numeroCompra                    String
+  anoCompra                       Int
+  processo                        String?   @db.Text
+  modalidadeNome                  String
+  modoDisputaNome                 String?
+  situacaoCompraNome              String
+  objetoCompra                    String    @db.Text
+  informacaoComplementar          String?   @db.Text
+  valorTotalEstimado              Float?
+  valorTotalHomologado            Float?  
+  dataAberturaProposta            DateTime?
+  dataEncerramentoProposta        DateTime?
+  dataPublicacaoPncp              DateTime
+  dataInclusao                    DateTime
+  dataAtualizacao                 DateTime
+  cnpjOrgaoEntidade               String
+  razaoSocialOrgaoEntidade        String
+  codigoUnidadeOrgao              String
+  nomeUnidadeOrgao                String
+  municipioNomeUnidadeOrgao       String
+  ufSiglaUnidadeOrgao             String
+  linkSistemaOrigem               String?   @db.Text 
+  srp                             Boolean   
+  amparoLegalNome                 String?  
+  sequencialCompra                Int?  
+  linkProcessoEletronico          String?
+  tipoInstrumentoConvocatorioNome String? 
+  dataAtualizacaoGlobal           DateTime?
 
   @@index([dataPublicacaoPncp])
   @@index([ufSiglaUnidadeOrgao])
@@ -90,4 +94,11 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model SyncLog {
+  id            String   @id @default(cuid())
+  runAt         DateTime @default(now())
+  createdCount  Int
+  updatedCount  Int
 }

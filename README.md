@@ -19,9 +19,9 @@ Este projeto é uma aplicação web desenvolvida em Next.js e TypeScript, com fo
 ```
 src/
   app/                # Páginas e rotas da aplicação (Next.js)
-	 api/              # Rotas de API (Next.js API routes)
-	 login/            # Páginas de login, erro e verificação
-	 register/         # Página de registro de usuário
+	 api/             # Rotas de API (Next.js API routes)
+	 login/           # Páginas de login, erro e verificação
+	 register/        # Página de registro de usuário
   components/         # Componentes reutilizáveis de UI
   lib/                # Funções utilitárias, integração com API, autenticação, cache, tipos
 ```
@@ -38,7 +38,7 @@ src/
 
 1. **Clone o repositório:**
 	```bash
-	git clone https://github.com/seu-usuario/pncp-system.git
+	git clone https://github.com/solucomercial/pncp-system.git
 	cd pncp-system
 	```
 
@@ -50,7 +50,7 @@ src/
 	```
 
 3. **Configure as variáveis de ambiente:**
-	- Crie um arquivo `.env.local` com as variáveis necessárias (exemplo: chaves de API, segredos de autenticação).
+	- Crie um arquivo `.env` com as variáveis necessárias (exemplo: chaves de API, segredos de autenticação).
 
 4. **Rode o projeto em modo desenvolvimento:**
 	```bash
