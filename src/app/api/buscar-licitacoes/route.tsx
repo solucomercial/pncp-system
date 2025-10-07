@@ -8,7 +8,6 @@ import { PncpLicitacao } from '@/lib/types';
 
 const prisma = new PrismaClient();
 
-// AQUI ESTÁ A CORREÇÃO: Trocamos 'any' por 'Licitacao'
 function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
   return {
     ...licitacao,
