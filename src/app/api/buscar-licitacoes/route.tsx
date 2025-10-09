@@ -11,7 +11,6 @@ const prisma = new PrismaClient();
 
 function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
   return {
-    // Campos que já correspondem
     numeroControlePNCP: licitacao.numeroControlePNCP,
     numeroCompra: licitacao.numeroCompra,
     anoCompra: licitacao.anoCompra,
@@ -21,8 +20,6 @@ function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
     sequencialCompra: licitacao.sequencialCompra ?? 0,
     tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome ?? '',
     modalidadeNome: licitacao.modalidadeNome,
-
-    // Mapeamento de campos opcionais ou com formatos diferentes
     processo: licitacao.processo ?? undefined,
     informacaoComplementar: licitacao.informacaoComplementar ?? undefined,
     modoDisputaNome: licitacao.modoDisputaNome ?? '',
@@ -34,13 +31,9 @@ function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
     dataInclusao: licitacao.dataInclusao.toISOString(),
     dataAtualizacao: licitacao.dataAtualizacao.toISOString(),
     linkSistemaOrigem: licitacao.linkSistemaOrigem ?? undefined,
-    
-    // CORREÇÃO DEFINITIVA: Transforma a string do DB no objeto esperado
     amparoLegal: licitacao.amparoLegalNome
       ? { codigo: 0, nome: licitacao.amparoLegalNome, descricao: '' }
       : undefined,
-    
-    // Mapeamento de objetos aninhados
     orgaoEntidade: {
       cnpj: licitacao.cnpjOrgaoEntidade,
       razaoSocial: licitacao.razaoSocialOrgaoEntidade,
@@ -55,8 +48,6 @@ function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
       ufNome: '', 
       codigoIbge: 0,
     },
-    
-    // Campos que não existem no DB e recebem um valor padrão
     tipoInstrumentoConvocatorioId: 0,
     modalidadeId: 0,
     modoDisputaId: 0,
@@ -136,7 +127,7 @@ export async function POST(request: Request) {
         try {
           if (licitacoesBrutas.length === 0) {
             enqueue({ type: 'result', resultados: [], totalBruto: 0, totalFinal: 0 });
-            controller.close();
+            // A linha controller.close() foi removida daqui
             return;
           }
 
@@ -153,6 +144,7 @@ export async function POST(request: Request) {
           console.error("❌ Erro no stream da API:", error);
           enqueue({ type: 'error', message: errorMessage });
         } finally {
+          // Esta é a única chamada a controller.close(), garantindo que só aconteça uma vez.
           controller.close();
         }
       },
