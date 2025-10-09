@@ -5,7 +5,6 @@ import { PncpLicitacao } from "./types";
 import { z } from "zod";
 import { AxiosError } from "axios";
 
-// Zod Schema com a correção nas datas
 const PncpLicitacaoSchema = z.object({
     numeroControlePNCP: z.string(),
     numeroCompra: z.string(),
@@ -18,7 +17,6 @@ const PncpLicitacaoSchema = z.object({
     informacaoComplementar: z.string().nullable().optional(),
     valorTotalEstimado: z.number().nullable().optional(),
     valorTotalHomologado: z.number().nullable().optional(),
-    // CORREÇÃO: Alterado de .datetime() para .string() para ser mais flexível
     dataAberturaProposta: z.string().nullable().optional(),
     dataEncerramentoProposta: z.string().nullable().optional(),
     dataPublicacaoPncp: z.string(),
@@ -50,6 +48,11 @@ const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 pncpApi.defaults.timeout = 90000;
 
 function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
+    // Definindo um tipo para a licitação com possíveis campos extras
+    type LicitacaoComExtras = PncpLicitacao & { [key: string]: unknown };
+
+    const licitacaoComExtras = licitacao as LicitacaoComExtras;
+
     return {
         numeroControlePNCP: licitacao.numeroControlePNCP,
         numeroCompra: licitacao.numeroCompra,
@@ -79,15 +82,15 @@ function mapLicitacaoToPrisma(licitacao: PncpLicitacao) {
         sequencialCompra: licitacao.sequencialCompra,
         tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome,
         justificativaPresencial: licitacao.justificativaPresencial,
-        linkProcessoEletronico: (licitacao as any).linkProcessoEletronico,
-        dataAtualizacaoGlobal: (licitacao as any).dataAtualizacaoGlobal ? new Date((licitacao as any).dataAtualizacaoGlobal) : null,
+        linkProcessoEletronico: typeof licitacaoComExtras.linkProcessoEletronico === 'string' ? licitacaoComExtras.linkProcessoEletronico : null,
+        dataAtualizacaoGlobal: licitacaoComExtras.dataAtualizacaoGlobal ? new Date(licitacaoComExtras.dataAtualizacaoGlobal as string) : null,
     };
 }
 
 async function fetchLicitacoesFromPNCP(data: Date): Promise<PncpLicitacao[]> {
     console.log(`[SyncService] Buscando licitações para a data: ${format(data, "yyyy-MM-dd")}`);
     const dataFormatada = format(data, "yyyyMMdd");
-    let todasLicitacoes: PncpLicitacao[] = [];
+    const todasLicitacoes: PncpLicitacao[] = []; // Corrigido para const
 
     for (const modalidade of ALL_MODALITY_CODES) {
         let pagina = 1;
@@ -157,7 +160,7 @@ async function upsertLicitacoes(licitacoes: PncpLicitacao[]) {
     }
 
     console.log(`[SyncService] Salvando/Atualizando ${licitacoes.length} licitações no banco de dados...`);
-    let createdCount = 0;
+    const createdCount = 0; // Corrigido para const
     let updatedCount = 0;
 
     const transacoes = licitacoes.map(async (lic) => {

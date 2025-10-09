@@ -196,7 +196,7 @@ export async function buscarLicitacoesPNCP(
   );
 
   const resultsFromAllModalities = await Promise.all(promises);
-  let allLicitacoes = resultsFromAllModalities.flat();
+  const allLicitacoes = resultsFromAllModalities.flat(); // Corrigido para const
 
   if (signal.aborted) throw new Error('A busca foi abortada pelo usuário.');
 
