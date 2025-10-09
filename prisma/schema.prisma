@@ -41,6 +41,7 @@ model Licitacao {
   sequencialCompra                Int?  
   linkProcessoEletronico          String?
   tipoInstrumentoConvocatorioNome String? 
+  justificativaPresencial         String? 
   dataAtualizacaoGlobal           DateTime?
 
   @@index([dataPublicacaoPncp])

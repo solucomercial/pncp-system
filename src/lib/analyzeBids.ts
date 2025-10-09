@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerateContentResult } from '@google/generative-ai';
 import { PncpLicitacao } from './types';
-import { getCachedAnalysis, setCachedAnalysis } from './cache';
 
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
@@ -33,7 +32,7 @@ async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise
       return result;
     } catch (error) {
       const apiError = error as unknown;
-
+      
       if (
         apiError instanceof GoogleGenerativeAIError &&
         (typeof apiError.message === 'string' && apiError.message.includes('503') ||
@@ -78,34 +77,17 @@ export async function analyzeAndFilterBids(
     return [];
   }
 
-  const bidsToAnalyze: PncpLicitacao[] = [];
-  const cachedViableBids: PncpLicitacao[] = [];
-
-  for (const lic of licitacoes) {
-    const cachedResult = getCachedAnalysis(lic.numeroControlePNCP);
-    if (cachedResult === true) {
-      cachedViableBids.push(lic);
-    } else if (cachedResult === null) {
-      bidsToAnalyze.push(lic);
-    }
-  }
-
-  if (bidsToAnalyze.length === 0) {
-    onProgress({ type: 'complete', message: `Análise concluída. ${cachedViableBids.length} licitações viáveis encontradas no cache.` });
-    return cachedViableBids;
-  }
-
-  const allViableBids: PncpLicitacao[] = [...cachedViableBids];
+  const allViableBids: PncpLicitacao[] = [];
   const CHUNK_SIZE = 150;
-  const chunks = Array.from({ length: Math.ceil(bidsToAnalyze.length / CHUNK_SIZE) }, (_, i) =>
-    bidsToAnalyze.slice(i * CHUNK_SIZE, i * CHUNK_SIZE + CHUNK_SIZE)
+  const chunks = Array.from({ length: Math.ceil(licitacoes.length / CHUNK_SIZE) }, (_, i) =>
+    licitacoes.slice(i * CHUNK_SIZE, i * CHUNK_SIZE + CHUNK_SIZE)
   );
   const totalChunks = chunks.length;
 
   onProgress({
     type: 'start',
-    message: `Analisando ${bidsToAnalyze.length.toLocaleString('pt-BR')} licitações com IA...`,
-    total: bidsToAnalyze.length,
+    message: `Analisando ${licitacoes.length.toLocaleString('pt-BR')} licitações com IA...`,
+    total: licitacoes.length,
     totalChunks,
   });
 
@@ -170,28 +152,20 @@ ${JSON.stringify(simplifiedBids, null, 2)}
             const viableSimplifiedBids = JSON.parse(jsonText) as { numeroControlePNCP: string }[];
             const viablePncpIds = new Set(viableSimplifiedBids.map(b => b.numeroControlePNCP));
 
-            const filteredChunk = chunk.filter(lic => {
-              const isViable = viablePncpIds.has(lic.numeroControlePNCP);
-              setCachedAnalysis(lic.numeroControlePNCP, isViable);
-              return isViable;
-            });
+            const filteredChunk = chunk.filter(lic => viablePncpIds.has(lic.numeroControlePNCP));
             allViableBids.push(...filteredChunk);
 
           } catch (parseError) {
             console.error(`❌ Erro de parse JSON no lote ${chunkNumber} mesmo após extração:`, parseError);
             console.error('JSON extraído que falhou:', jsonText);
-            chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
           }
         } else {
           console.warn(`⚠️ Não foi possível extrair JSON da resposta do lote ${chunkNumber}. Resposta crua:`, rawText);
-          chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
         }
       } else {
-        chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
         console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia.`);
       }
     } catch (error) {
-      chunk.forEach(lic => setCachedAnalysis(lic.numeroControlePNCP, false));
       console.error(`❌ Erro ao analisar o lote ${chunkNumber} com Gemini:`, error);
     }
 
@@ -202,6 +176,6 @@ ${JSON.stringify(simplifiedBids, null, 2)}
     chunkIndex++;
   }
 
-  console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis (incluindo cache).`);
+  console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
   return allViableBids;
 }

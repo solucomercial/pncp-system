@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { ApiResponse, PncpLicitacao, PncpApiResponse } from './types';
 import { format, parseISO, differenceInDays, subDays } from 'date-fns';
-import { getCachedApiResult, setCachedApiResult } from './apiCache';
 
 export interface ProgressUpdate {
  type: 'info' | 'fetching' | 'modality_complete' | 'fetch_error';
@@ -187,28 +186,17 @@ export async function buscarLicitacoesPNCP(
   if (filters.valorMax) baseParams.valorMaximo = filters.valorMax;
 
 
-  const cacheKey = JSON.stringify(baseParams);
-  const cachedData = getCachedApiResult(cacheKey);
-  let allLicitacoes: PncpLicitacao[];
+  const modalidadesCodigos = filters.modalidades && filters.modalidades.length > 0
+   ? filters.modalidades.map(modalidadeNome => modalidadesMap[modalidadeNome.toLowerCase().replace(" de licitação", "").trim()]).filter((code): code is number => code !== undefined)
+   : ALL_MODALITY_CODES;
 
-  if (cachedData) {
-   allLicitacoes = cachedData;
-   onProgress({ type: 'info', message: 'Resultados encontrados no cache da API.' });
-  } else {
-   const modalidadesCodigos = filters.modalidades && filters.modalidades.length > 0
-    ? filters.modalidades.map(modalidadeNome => modalidadesMap[modalidadeNome.toLowerCase().replace(" de licitação", "").trim()]).filter((code): code is number => code !== undefined)
-    : ALL_MODALITY_CODES;
+  onProgress({ type: 'info', message: `Iniciando busca em ${modalidadesCodigos.length} modalidades...` });
+  const promises = modalidadesCodigos.map(modalidadeCode =>
+   buscarLicitacoesPorModalidade(modalidadeCode, baseParams, onProgress, signal)
+  );
 
-   onProgress({ type: 'info', message: `Iniciando busca em ${modalidadesCodigos.length} modalidades...` });
-   const promises = modalidadesCodigos.map(modalidadeCode =>
-    buscarLicitacoesPorModalidade(modalidadeCode, baseParams, onProgress, signal)
-   );
-
-   const resultsFromAllModalities = await Promise.all(promises);
-   allLicitacoes = resultsFromAllModalities.flat();
-
-   setCachedApiResult(cacheKey, allLicitacoes);
-  }
+  const resultsFromAllModalities = await Promise.all(promises);
+  let allLicitacoes = resultsFromAllModalities.flat();
 
   if (signal.aborted) throw new Error('A busca foi abortada pelo usuário.');
 
