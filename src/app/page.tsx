@@ -29,7 +29,6 @@ import { Toaster, toast } from "sonner";
 import { type PncpLicitacao as Licitacao } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UserNav } from "@/components/UserNav";
-import { subDays } from "date-fns";
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
@@ -44,7 +43,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [allResults, setAllResults] = useState<Licitacao[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Inicia como true
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -53,22 +52,19 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // ALTERAÇÃO: Este useEffect agora busca TODOS os dados do banco na carga inicial.
   useEffect(() => {
-    const today = new Date();
-    const defaultFilters: Filters = {
+    const initialLoadFilters: Filters = {
       modalidades: [],
       palavrasChave: [],
       valorMin: "",
       valorMax: "",
       estado: null,
       blacklist: [],
-      useGeminiAnalysis: true,
-      dateRange: {
-        from: subDays(today, 7),
-        to: today,
-      },
+      useGeminiAnalysis: false, // Importante: desativado para a carga inicial ser rápida
+      dateRange: undefined,    // Sem filtro de data
     };
-    handleApplyFilters(defaultFilters);
+    handleApplyFilters(initialLoadFilters, true); // Passa um flag para indicar que é a carga inicial
   }, []);
 
 
@@ -123,7 +119,7 @@ export default function Home() {
     };
   }, [filteredResults, currentPage, itemsPerPage]);
 
-  const handleApplyFilters = async (filters: Filters) => {
+  const handleApplyFilters = async (filters: Filters, isInitialLoad = false) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -137,16 +133,8 @@ export default function Home() {
     setSearchTerm("");
     setSelectedBids([]);
 
-    if (!filters.dateRange?.from) {
-      toast.error("Data não informada", {
-        description: "O filtro de data é obrigatório para realizar a busca.",
-      });
-      setIsLoading(false);
-      setHasSearched(false);
-      return;
-    }
-
-    const toastId = toast.loading("Iniciando busca...", {
+    // Não mostra toast na carga inicial, a menos que seja uma busca do usuário
+    const toastId = isInitialLoad ? undefined : toast.loading("Iniciando busca...", {
       description: "Preparando filtros...",
       action: {
         label: "Cancelar",
@@ -184,49 +172,62 @@ export default function Home() {
           if (!line) continue;
           try {
             const json = JSON.parse(line);
-            switch (json.type) {
-              case 'info':
-                toast.loading("Buscando licitações...", {
-                  id: toastId,
-                  description: json.message,
-                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                });
-                break;
-              case 'fetching':
-                const desc = `${json.modalidade}: Página ${json.page} de ${json.totalPages || '...'}`;
-                toast.loading("Capturando dados do PNCP...", {
-                  id: toastId,
-                  description: desc,
-                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                });
-                break;
-              case 'modality_complete':
-                toast.success(`'${json.modalidade}' concluído!`, {
-                  description: `Todos os dados foram carregados para esta modalidade.`,
-                });
-                break;
-              case 'fetch_error':
-                toast.error("Falha na Busca", {
-                  description: json.message,
-                });
-                break;
-              case 'start':
-                toast.loading(json.message, {
-                  id: toastId,
-                  description: `Analisando 0 de ${json.total.toLocaleString('pt-BR')}...`,
-                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                });
-                break;
-              case 'progress':
-                const processed = (json.chunk - 1) * 150;
-                toast.loading(`Analisando ${json.totalChunks > 1 ? `lote ${json.chunk} de ${json.totalChunks}` : ''}`, {
-                  id: toastId,
-                  description: `Itens analisados: ${processed.toLocaleString('pt-BR')}...`,
-                  action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                });
-                break;
-              case 'result':
-                setAllResults(json.resultados || []);
+            
+            // Só exibe toasts se não for a carga inicial
+            if (!isInitialLoad) {
+                switch (json.type) {
+                case 'info':
+                    toast.loading("Buscando licitações...", {
+                    id: toastId,
+                    description: json.message,
+                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    });
+                    break;
+                case 'fetching':
+                    const desc = `${json.modalidade}: Página ${json.page} de ${json.totalPages || '...'}`;
+                    toast.loading("Capturando dados do PNCP...", {
+                    id: toastId,
+                    description: desc,
+                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    });
+                    break;
+                case 'modality_complete':
+                    toast.success(`'${json.modalidade}' concluído!`, {
+                    description: `Todos os dados foram carregados para esta modalidade.`,
+                    });
+                    break;
+                case 'fetch_error':
+                    toast.error("Falha na Busca", {
+                    description: json.message,
+                    });
+                    break;
+                case 'start':
+                    toast.loading(json.message, {
+                    id: toastId,
+                    description: `Analisando 0 de ${json.total.toLocaleString('pt-BR')}...`,
+                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    });
+                    break;
+                case 'progress':
+                    const processed = (json.chunk - 1) * 150;
+                    toast.loading(`Analisando ${json.totalChunks > 1 ? `lote ${json.chunk} de ${json.totalChunks}` : ''}`, {
+                    id: toastId,
+                    description: `Itens analisados: ${processed.toLocaleString('pt-BR')}...`,
+                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    });
+                    break;
+                case 'error':
+                    throw new Error(json.message);
+                }
+            }
+            
+            if (json.type === 'result') {
+              setAllResults(json.resultados || []);
+              if (isInitialLoad) {
+                if ((json.resultados || []).length === 0) {
+                    toast.info("Banco de dados vazio", { description: "Execute a carga inicial de dados para começar." });
+                }
+              } else {
                 const useGemini = filters.useGeminiAnalysis !== false;
                 const totalBruto = json.totalBruto || 0;
                 const totalFinal = json.totalFinal || 0;
@@ -252,16 +253,19 @@ export default function Home() {
                     description: infoMessage,
                   });
                 }
-                break;
-              case 'error':
+              }
+            } else if (json.type === 'error' && !isInitialLoad) {
                 throw new Error(json.message);
             }
+
           } catch (e) { console.error("Erro ao processar o stream:", e, "Linha:", line); }
         }
       }
     } catch (error: unknown) {
       const err = error as Error;
-      if (err.name === 'AbortError') {
+      if (isInitialLoad) {
+          toast.error("Erro na carga inicial", { description: err.message });
+      } else if (err.name === 'AbortError') {
         toast.info("Busca cancelada", {
           id: toastId,
           description: "A operação foi cancelada pelo usuário.",
@@ -384,11 +388,8 @@ export default function Home() {
                 className="min-w-[120px] h-11 text-base"
                 disabled={isLoading}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Filtrando...
-                  </>
+                {isLoading && !abortControllerRef.current ? (
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <>
                     <FilterIcon className="mr-2 h-4 w-4" />
@@ -414,7 +415,7 @@ export default function Home() {
           <Card className="shadow-lg">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle>Resultados da Busca ({filteredResults.length} licitações encontradas)</CardTitle>
+                <CardTitle>Resultados da Busca ({filteredResults.length.toLocaleString('pt-BR')} licitações encontradas)</CardTitle>
                 {selectedBids.length > 0 && (
                   <Button onClick={handleGenerateReport}>
                     <FileText className="w-4 h-4 mr-2" />
