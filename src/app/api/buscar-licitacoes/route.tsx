@@ -1,5 +1,6 @@
+// src/app/api/buscar-licitacoes/route.tsx
 import { NextResponse } from 'next/server';
-import { PrismaClient, Prisma, Licitacao } from '@prisma/client'; // Importar o tipo Licitacao
+import { PrismaClient, Prisma, Licitacao } from '@prisma/client';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
 import { Filters } from '@/components/FilterSheet';
 import { getServerSession } from "next-auth/next";
@@ -10,40 +11,56 @@ const prisma = new PrismaClient();
 
 function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
   return {
-    ...licitacao,
-    valorTotalEstimado: licitacao.valorTotalEstimado ?? undefined,
-    valorTotalHomologado: licitacao.valorTotalHomologado ?? undefined,
+    // Campos que já correspondem
+    numeroControlePNCP: licitacao.numeroControlePNCP,
+    numeroCompra: licitacao.numeroCompra,
+    anoCompra: licitacao.anoCompra,
+    situacaoCompraNome: licitacao.situacaoCompraNome,
+    objetoCompra: licitacao.objetoCompra,
+    srp: licitacao.srp,
+    sequencialCompra: licitacao.sequencialCompra ?? 0,
+    tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome ?? '',
+    modalidadeNome: licitacao.modalidadeNome,
+
+    // Mapeamento de campos opcionais ou com formatos diferentes
     processo: licitacao.processo ?? undefined,
     informacaoComplementar: licitacao.informacaoComplementar ?? undefined,
     modoDisputaNome: licitacao.modoDisputaNome ?? '',
+    valorTotalEstimado: licitacao.valorTotalEstimado ?? undefined,
+    valorTotalHomologado: licitacao.valorTotalHomologado ?? undefined,
     dataAberturaProposta: licitacao.dataAberturaProposta?.toISOString(),
     dataEncerramentoProposta: licitacao.dataEncerramentoProposta?.toISOString(),
     dataPublicacaoPncp: licitacao.dataPublicacaoPncp.toISOString(),
     dataInclusao: licitacao.dataInclusao.toISOString(),
     dataAtualizacao: licitacao.dataAtualizacao.toISOString(),
     linkSistemaOrigem: licitacao.linkSistemaOrigem ?? undefined,
-    amparoLegalNome: licitacao.amparoLegalNome ?? undefined,
-    justificativaPresencial: licitacao.justificativaPresencial ?? undefined,
-    sequencialCompra: licitacao.sequencialCompra ?? 0,
+    
+    // CORREÇÃO DEFINITIVA: Transforma a string do DB no objeto esperado
+    amparoLegal: licitacao.amparoLegalNome
+      ? { codigo: 0, nome: licitacao.amparoLegalNome, descricao: '' }
+      : undefined,
+    
+    // Mapeamento de objetos aninhados
     orgaoEntidade: {
       cnpj: licitacao.cnpjOrgaoEntidade,
       razaoSocial: licitacao.razaoSocialOrgaoEntidade,
-      poderId: '', // Campo não presente no schema do DB
-      esferaId: '', // Campo não presente no schema do DB
+      poderId: '', 
+      esferaId: '',
     },
     unidadeOrgao: {
       codigoUnidade: licitacao.codigoUnidadeOrgao,
       nomeUnidade: licitacao.nomeUnidadeOrgao,
       municipioNome: licitacao.municipioNomeUnidadeOrgao,
       ufSigla: licitacao.ufSiglaUnidadeOrgao,
-      ufNome: '', // Campo não presente no schema do DB
-      codigoIbge: 0, // Campo não presente no schema do DB
+      ufNome: '', 
+      codigoIbge: 0,
     },
-    tipoInstrumentoConvocatorioId: 0, // Campo não presente no schema do DB
-    tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome ?? '',
-    modalidadeId: 0, // Campo não presente no schema do DB
-    modoDisputaId: 0, // Campo não presente no schema do DB
-    situacaoCompraId: 0, // Campo não presente no schema do DB
+    
+    // Campos que não existem no DB e recebem um valor padrão
+    tipoInstrumentoConvocatorioId: 0,
+    modalidadeId: 0,
+    modoDisputaId: 0,
+    situacaoCompraId: 0,
   };
 }
 
@@ -58,7 +75,6 @@ export async function POST(request: Request) {
     const { filters } = body;
     const useGeminiAnalysis = filters.useGeminiAnalysis !== false;
 
-    // 1. Construir a query do Prisma dinamicamente com base nos filtros
     const where: Prisma.LicitacaoWhereInput = {};
     const andConditions: Prisma.LicitacaoWhereInput[] = [];
 
@@ -102,19 +118,16 @@ export async function POST(request: Request) {
       where.AND = andConditions;
     }
 
-
-    // 2. Executar a busca no banco de dados
     const licitacoesBrutasDoDB = await prisma.licitacao.findMany({
       where,
       orderBy: {
         dataPublicacaoPncp: 'desc',
       },
-      take: 5000, // Limite para evitar sobrecarga
+      take: 5000,
     });
 
     const licitacoesBrutas = licitacoesBrutasDoDB.map(mapPrismaToPncp);
 
-    // O streaming agora é usado apenas para a análise do Gemini
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
