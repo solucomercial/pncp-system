@@ -43,7 +43,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [allResults, setAllResults] = useState<Licitacao[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Inicia como true
+  const [isLoading, setIsLoading] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -52,9 +52,12 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ALTERAÇÃO: Este useEffect agora busca os dados do dia atual na carga inicial.
+  // ALTERAÇÃO: Carrega os dados do dia anterior na carga inicial.
   useEffect(() => {
     const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
     const initialLoadFilters: Filters = {
       modalidades: [],
       palavrasChave: [],
@@ -62,10 +65,10 @@ export default function Home() {
       valorMax: "",
       estado: null,
       blacklist: [],
-      useGeminiAnalysis: false, // Importante: desativado para a carga inicial ser rápida
-      dateRange: { from: today, to: today }, // Define o período para o dia de hoje
+      useGeminiAnalysis: false, 
+      dateRange: { from: yesterday, to: yesterday }, // Define o período para ontem
     };
-    handleApplyFilters(initialLoadFilters, true); // Passa um flag para indicar que é a carga inicial
+    handleApplyFilters(initialLoadFilters, true);
   }, []);
 
 
@@ -126,23 +129,22 @@ export default function Home() {
     }
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-
+  
     setIsLoading(true);
     setAllResults([]);
     setCurrentPage(1);
     setHasSearched(true);
     setSearchTerm("");
     setSelectedBids([]);
-
-    // Não mostra toast na carga inicial, a menos que seja uma busca do usuário
-    const toastId = isInitialLoad ? undefined : toast.loading("Iniciando busca...", {
-      description: "Preparando filtros...",
+  
+    const toastId = isInitialLoad ? undefined : toast.loading("Buscando licitações...", {
+      description: "Aguarde enquanto consultamos o banco de dados.",
       action: {
         label: "Cancelar",
         onClick: () => abortControllerRef.current?.abort(),
       },
     });
-
+  
     try {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
@@ -150,128 +152,92 @@ export default function Home() {
         body: JSON.stringify({ filters }),
         signal,
       });
-
-      if (!res.body) throw new Error("A resposta do servidor não pode ser lida.");
+  
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Falha na requisição para a API.');
+        const errorData = await res.json().catch(() => ({ message: 'Não foi possível ler a resposta do servidor.' }));
+        throw new Error(errorData.message || `Erro ${res.status}: Ocorreu um problema no servidor.`);
       }
-
+  
+      if (!res.body) throw new Error("A resposta do servidor está vazia.");
+  
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-
+  
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
+  
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
+  
         for (const line of lines) {
           if (!line) continue;
           try {
             const json = JSON.parse(line);
             
-            // Só exibe toasts se não for a carga inicial
-            if (!isInitialLoad) {
-                switch (json.type) {
-                case 'info':
-                    toast.loading("Buscando licitações...", {
-                    id: toastId,
-                    description: json.message,
-                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                    });
-                    break;
-                case 'fetching':
-                    const desc = `${json.modalidade}: Página ${json.page} de ${json.totalPages || '...'}`;
-                    toast.loading("Capturando dados do PNCP...", {
-                    id: toastId,
-                    description: desc,
-                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                    });
-                    break;
-                case 'modality_complete':
-                    toast.success(`'${json.modalidade}' concluído!`, {
-                    description: `Todos os dados foram carregados para esta modalidade.`,
-                    });
-                    break;
-                case 'fetch_error':
-                    toast.error("Falha na Busca", {
-                    description: json.message,
-                    });
-                    break;
+            if (toastId) {
+              switch (json.type) {
                 case 'start':
-                    toast.loading(json.message, {
+                  toast.loading(json.message, {
                     id: toastId,
                     description: `Analisando 0 de ${json.total.toLocaleString('pt-BR')}...`,
                     action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                    });
-                    break;
+                  });
+                  break;
                 case 'progress':
-                    const processed = (json.chunk - 1) * 150;
-                    toast.loading(`Analisando ${json.totalChunks > 1 ? `lote ${json.chunk} de ${json.totalChunks}` : ''}`, {
+                  const processed = (json.chunk - 1) * 150; // Aproximação
+                  toast.loading(`Analisando com IA (Lote ${json.chunk} de ${json.totalChunks})`, {
                     id: toastId,
-                    description: `Itens analisados: ${processed.toLocaleString('pt-BR')}...`,
+                    description: `Itens analisados: ~${processed.toLocaleString('pt-BR')}...`,
                     action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
-                    });
-                    break;
+                  });
+                  break;
                 case 'error':
-                    throw new Error(json.message);
-                }
+                  throw new Error(json.message);
+              }
             }
             
             if (json.type === 'result') {
               setAllResults(json.resultados || []);
+              const totalFinal = json.totalFinal || 0;
+
               if (isInitialLoad) {
-                if ((json.resultados || []).length === 0) {
-                    toast.info("Nenhuma licitação encontrada para hoje.");
+                if (totalFinal === 0) {
+                    toast.info("Nenhuma licitação encontrada para ontem.");
                 } else {
-                    toast.success(`${(json.resultados || []).length.toLocaleString('pt-BR')} licitações encontradas para hoje!`);
+                    toast.success(`${totalFinal.toLocaleString('pt-BR')} licitações de ontem carregadas!`);
                 }
               } else {
-                const useGemini = filters.useGeminiAnalysis !== false;
-                const totalBruto = json.totalBruto || 0;
-                const totalFinal = json.totalFinal || 0;
-
                 if (totalFinal > 0) {
-                  const successMessage = useGemini
-                    ? `Análise concluída! ${totalFinal.toLocaleString('pt-BR')} licitações viáveis encontradas.`
-                    : `Busca concluída! ${totalFinal.toLocaleString('pt-BR')} licitações encontradas.`;
+                  const useGemini = filters.useGeminiAnalysis !== false;
+                  const successMessage = `Busca concluída!`;
+                  const description = useGemini 
+                    ? `${totalFinal.toLocaleString('pt-BR')} licitações relevantes encontradas.`
+                    : `${totalFinal.toLocaleString('pt-BR')} licitações encontradas com os filtros aplicados.`;
 
-                  toast.success(successMessage, {
-                    id: toastId,
-                    description: useGemini
-                      ? `A IA analisou ${totalBruto.toLocaleString('pt-BR')} licitações.`
-                      : "Filtros aplicados com sucesso.",
-                  });
+                  toast.success(successMessage, { id: toastId, description });
                 } else {
-                  const infoMessage = useGemini && totalBruto > 0
-                    ? `Nenhuma licitação viável encontrada após análise de ${totalBruto.toLocaleString('pt-BR')} itens.`
-                    : "Nenhuma licitação encontrada com os filtros aplicados.";
-
                   toast.info("Nenhum resultado", {
                     id: toastId,
-                    description: infoMessage,
+                    description: "Nenhuma licitação encontrada com os filtros aplicados.",
                   });
                 }
               }
-            } else if (json.type === 'error' && !isInitialLoad) {
-                throw new Error(json.message);
             }
-
-          } catch (e) { console.error("Erro ao processar o stream:", e, "Linha:", line); }
+          } catch (e) { 
+            if (toastId) toast.error("Erro de comunicação", { id: toastId, description: "Houve um problema ao processar os dados recebidos." });
+            console.error("Erro ao processar o stream:", e, "Linha:", line); 
+          }
         }
       }
     } catch (error: unknown) {
       const err = error as Error;
-      if (isInitialLoad) {
-          toast.error("Erro na carga inicial", { description: err.message });
-      } else if (err.name === 'AbortError') {
+      if (err.name === 'AbortError') {
         toast.info("Busca cancelada", {
           id: toastId,
-          description: "A operação foi cancelada pelo usuário.",
+          description: "A operação foi interrompida.",
         });
       } else {
         toast.error("Erro na busca", { description: err.message, id: toastId });
@@ -468,7 +434,7 @@ export default function Home() {
                 ))}
               </ul>
             </CardContent>
-{totalPages > 1 && (
+            {totalPages > 1 && (
               <CardFooter className="flex-col sm:flex-row items-center sm:justify-between gap-4">
                 {itemsPerPage !== 'all' && (
                   <Pagination>
