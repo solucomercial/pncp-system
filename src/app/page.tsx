@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useSession, signIn } from "next-auth/react";
-import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2 } from "lucide-react";
+// ALTERAÇÃO: Adicionado o ícone X
+import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2, X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -52,7 +53,6 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ALTERAÇÃO: Carrega os dados do dia anterior na carga inicial.
   useEffect(() => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -66,7 +66,7 @@ export default function Home() {
       estado: null,
       blacklist: [],
       useGeminiAnalysis: false, 
-      dateRange: { from: yesterday, to: yesterday }, // Define o período para ontem
+      dateRange: { from: yesterday, to: yesterday },
     };
     handleApplyFilters(initialLoadFilters, true);
   }, []);
@@ -136,13 +136,17 @@ export default function Home() {
     setHasSearched(true);
     setSearchTerm("");
     setSelectedBids([]);
+    
+    // ALTERAÇÃO: Objeto de ação para o toast com o ícone
+    const cancelAction = {
+      label: <XIcon className="h-5 w-5" />,
+      altText: "Cancelar",
+      onClick: () => abortControllerRef.current?.abort(),
+    };
   
     const toastId = isInitialLoad ? undefined : toast.loading("Buscando licitações...", {
       description: "Aguarde enquanto consultamos o banco de dados.",
-      action: {
-        label: "Cancelar",
-        onClick: () => abortControllerRef.current?.abort(),
-      },
+      action: cancelAction,
     });
   
     try {
@@ -183,7 +187,7 @@ export default function Home() {
                   toast.loading(json.message, {
                     id: toastId,
                     description: `Analisando 0 de ${json.total.toLocaleString('pt-BR')}...`,
-                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    action: cancelAction,
                   });
                   break;
                 case 'progress':
@@ -191,7 +195,7 @@ export default function Home() {
                   toast.loading(`Analisando com IA (Lote ${json.chunk} de ${json.totalChunks})`, {
                     id: toastId,
                     description: `Itens analisados: ~${processed.toLocaleString('pt-BR')}...`,
-                    action: { label: "Cancelar", onClick: () => abortControllerRef.current?.abort() },
+                    action: cancelAction,
                   });
                   break;
                 case 'error':
