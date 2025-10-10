@@ -52,8 +52,9 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ALTERAÇÃO: Este useEffect agora busca TODOS os dados do banco na carga inicial.
+  // ALTERAÇÃO: Este useEffect agora busca os dados do dia atual na carga inicial.
   useEffect(() => {
+    const today = new Date();
     const initialLoadFilters: Filters = {
       modalidades: [],
       palavrasChave: [],
@@ -62,7 +63,7 @@ export default function Home() {
       estado: null,
       blacklist: [],
       useGeminiAnalysis: false, // Importante: desativado para a carga inicial ser rápida
-      dateRange: undefined,    // Sem filtro de data
+      dateRange: { from: today, to: today }, // Define o período para o dia de hoje
     };
     handleApplyFilters(initialLoadFilters, true); // Passa um flag para indicar que é a carga inicial
   }, []);
@@ -225,7 +226,9 @@ export default function Home() {
               setAllResults(json.resultados || []);
               if (isInitialLoad) {
                 if ((json.resultados || []).length === 0) {
-                    toast.info("Banco de dados vazio", { description: "Execute a carga inicial de dados para começar." });
+                    toast.info("Nenhuma licitação encontrada para hoje.");
+                } else {
+                    toast.success(`${(json.resultados || []).length.toLocaleString('pt-BR')} licitações encontradas para hoje!`);
                 }
               } else {
                 const useGemini = filters.useGeminiAnalysis !== false;
@@ -465,7 +468,7 @@ export default function Home() {
                 ))}
               </ul>
             </CardContent>
-            {totalPages > 1 && (
+{totalPages > 1 && (
               <CardFooter className="flex-col sm:flex-row items-center sm:justify-between gap-4">
                 {itemsPerPage !== 'all' && (
                   <Pagination>
@@ -489,7 +492,7 @@ export default function Home() {
                     }}
                   >
                     <SelectTrigger className="w-28 h-9">
-                      <SelectValue placeholder={itemsPerPage === 'all' ? 'Todos' : itemsPerPage} />
+                      <SelectValue placeholder="Itens por pág." />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="10">10</SelectItem>
