@@ -1,4 +1,3 @@
-// src/app/api/buscar-licitacoes/route.tsx
 import { NextResponse } from 'next/server';
 import { PrismaClient, Prisma, Licitacao } from '@prisma/client';
 import { analyzeAndFilterBids } from '@/lib/analyzeBids';
@@ -70,10 +69,14 @@ export async function POST(request: Request) {
     const andConditions: Prisma.LicitacaoWhereInput[] = [];
 
     if (filters.dateRange?.from) {
-        andConditions.push({ dataPublicacaoPncp: { gte: new Date(filters.dateRange.from) } });
+        const fromDate = new Date(filters.dateRange.from);
+        fromDate.setHours(0, 0, 0, 0);
+        andConditions.push({ dataPublicacaoPncp: { gte: fromDate } });
     }
     if (filters.dateRange?.to) {
-        andConditions.push({ dataPublicacaoPncp: { lte: new Date(filters.dateRange.to) } });
+        const toDate = new Date(filters.dateRange.to);
+        toDate.setHours(23, 59, 59, 999);
+        andConditions.push({ dataPublicacaoPncp: { lte: toDate } });
     }
     if (filters.estado) {
         andConditions.push({ ufSiglaUnidadeOrgao: filters.estado });
