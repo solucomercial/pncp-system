@@ -30,13 +30,14 @@ function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
     dataInclusao: licitacao.dataInclusao.toISOString(),
     dataAtualizacao: licitacao.dataAtualizacao.toISOString(),
     linkSistemaOrigem: licitacao.linkSistemaOrigem ?? undefined,
+    razaoSocialOrgaoEntidade: licitacao.razaoSocialOrgaoEntidade, // <-- Correção aqui
     amparoLegal: licitacao.amparoLegalNome
       ? { codigo: 0, nome: licitacao.amparoLegalNome, descricao: '' }
       : undefined,
     orgaoEntidade: {
       cnpj: licitacao.cnpjOrgaoEntidade,
       razaoSocial: licitacao.razaoSocialOrgaoEntidade,
-      poderId: '', 
+      poderId: '',
       esferaId: '',
     },
     unidadeOrgao: {
@@ -44,7 +45,7 @@ function mapPrismaToPncp(licitacao: Licitacao): PncpLicitacao {
       nomeUnidade: licitacao.nomeUnidadeOrgao,
       municipioNome: licitacao.municipioNomeUnidadeOrgao,
       ufSigla: licitacao.ufSiglaUnidadeOrgao,
-      ufNome: '', 
+      ufNome: '',
       codigoIbge: 0,
     },
     tipoInstrumentoConvocatorioId: 0,
