@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useSession, signIn } from "next-auth/react";
-// ALTERAÇÃO: Adicionado o ícone X
 import { Search, MapPin, CalendarDays, FileText, AlertCircle, Building, Newspaper, Filter as FilterIcon, Loader2, X as XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

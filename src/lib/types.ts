@@ -15,6 +15,7 @@ export interface PncpLicitacao {
   situacaoCompraNome: string;
   objetoCompra: string;
   informacaoComplementar?: string;
+  razaoSocialOrgaoEntidade: string;
   srp: boolean;
   amparoLegal?: {
     codigo: number;
