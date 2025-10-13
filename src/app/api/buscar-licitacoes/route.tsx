@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       orderBy: {
         dataPublicacaoPncp: 'desc',
       },
-      take: 5000,
+      take: 10000,
     });
 
     const licitacoesBrutas = licitacoesBrutasDoDB.map(mapPrismaToPncp);
