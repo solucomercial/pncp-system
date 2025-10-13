@@ -115,19 +115,19 @@ const linhasFornecimento = [
 
 
 const modalidadesDisponiveis = [
- { id: "leilão eletrônico", label: "Leilão Eletrônico" },
- { id: "diálogo competitivo", label: "Diálogo Competitivo" },
- { id: "concurso", label: "Concurso" },
- { id: "concorrência eletrônica", label: "Concorrência Eletrônica" },
- { id: "concorrência presencial", label: "Concorrência Presencial" },
- { id: "pregão eletrônico", label: "Pregão Eletrônico" },
- { id: "pregão presencial", label: "Pregão Presencial" },
- { id: "dispensa de licitação", label: "Dispensa de Licitação" },
- { id: "inexigibilidade de licitação", label: "Inexigibilidade de Licitação" },
- { id: "manifestação de interesse", label: "Manifestação de Interesse" },
- { id: "pré-qualificação", label: "Pré-qualificação" },
- { id: "credenciamento", label: "Credenciamento" },
- { id: "leilão presencial", label: "Leilão Presencial" },
+ { id: "Leilão - Eletrônico", label: "Leilão Eletrônico" },
+ { id: "Diálogo Competitivo", label: "Diálogo Competitivo" },
+ { id: "Concurso", label: "Concurso" },
+ { id: "Concorrência - Eletrônica", label: "Concorrência Eletrônica" },
+ { id: "Concorrência - Presencial", label: "Concorrência Presencial" },
+ { id: "Pregão - Eletrônico", label: "Pregão Eletrônico" },
+ { id: "Pregão - Presencial", label: "Pregão Presencial" },
+ { id: "Dispensa", label: "Dispensa de Licitação" },
+ { id: "Inexigibilidade", label: "Inexigibilidade de Licitação" },
+ { id: "Manifestação de Interesse", label: "Manifestação de Interesse" },
+ { id: "Pré-qualificação", label: "Pré-qualificação" },
+ { id: "Credenciamento", label: "Credenciamento" },
+ { id: "Leilão - Presencial", label: "Leilão Presencial" },
 ];
 
 const estadosBrasil = [
