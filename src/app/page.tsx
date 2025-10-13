@@ -404,7 +404,7 @@ export default function Home() {
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
                       <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4>
                       <div className="flex items-center flex-wrap gap-2">
-                        {licitacao.tipoInstrumentoConvocatorioNome && <Badge variant="outline" className="whitespace-nowrap"><FileText className="w-3.5 h-3.5 mr-1.5" />{licitacao.tipoInstrumentoConvocatorioNome}</Badge>}
+                        {licitacao.numeroCompra && <Badge variant="outline" className="whitespace-nowrap"><FileText className="w-3.5 h-3.5 mr-1.5" />{licitacao.numeroCompra}/{licitacao.anoCompra}</Badge>}
                         {licitacao.modalidadeNome && <Badge variant="outline" className="whitespace-nowrap"><Newspaper className="w-3.5 h-3.5 mr-1.5" />{licitacao.modalidadeNome}</Badge>}
                         {licitacao.situacaoCompraNome && <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize whitespace-nowrap">{licitacao.situacaoCompraNome.toLowerCase()}</Badge>}
                       </div>
@@ -413,6 +413,7 @@ export default function Home() {
                       <div className="flex items-start gap-2"><Building className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Órgão:</strong> {licitacao.orgaoEntidade?.razaoSocial ?? 'N/A'}</span></div>
                       <div className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Local:</strong> {`${licitacao.unidadeOrgao?.municipioNome ?? 'N/A'} / ${licitacao.unidadeOrgao?.ufSigla ?? 'N/A'}`}</span></div>
                       <div className="flex items-start gap-2"><CalendarDays className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Publicação:</strong> {formatGenericDateTime(licitacao.dataPublicacaoPncp)}</span></div>
+                      <div className="flex items-start gap-2"><CalendarDays className="w-4 h-4 mt-1 flex-shrink-0" /><span><strong>Abertura da Proposta:</strong> {formatGenericDateTime(licitacao.dataAberturaProposta)}</span></div>
                       <div className="flex items-start gap-2"><strong>Valor Estimado:</strong><span className="font-semibold text-green-700">{formatCurrency(licitacao.valorTotalEstimado)}</span></div>
                     </div>
                     <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
