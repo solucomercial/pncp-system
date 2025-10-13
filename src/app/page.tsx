@@ -29,6 +29,7 @@ import { Toaster, toast } from "sonner";
 import { type PncpLicitacao as Licitacao } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UserNav } from "@/components/UserNav";
+import { LicitacaoDetailDialog } from "@/components/LicitacaoDetailDialog";
 
 const BACKEND_API_ROUTE = "/api/buscar-licitacoes";
 
@@ -49,6 +50,8 @@ export default function Home() {
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [selectedBids, setSelectedBids] = useState<string[]>([]);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+  const [selectedLicitacao, setSelectedLicitacao] = useState<Licitacao | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -64,7 +67,7 @@ export default function Home() {
       valorMax: "",
       estado: null,
       blacklist: [],
-      useGeminiAnalysis: false, 
+      useGeminiAnalysis: false,
       dateRange: { from: yesterday, to: yesterday },
     };
     handleApplyFilters(initialLoadFilters, true);
@@ -89,6 +92,11 @@ export default function Home() {
     if (["REVOGADA", "ANULADA", "SUSPENSA"].includes(status)) return "destructive";
     if (["DIVULGADA NO PNCP"].includes(status)) return "default";
     return "secondary";
+  };
+
+  const handleOpenDetailDialog = (licitacao: Licitacao) => {
+    setSelectedLicitacao(licitacao);
+    setIsDetailDialogOpen(true);
   };
 
   const filteredResults = useMemo(() => {
@@ -128,26 +136,25 @@ export default function Home() {
     }
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-  
+
     setIsLoading(true);
     setAllResults([]);
     setCurrentPage(1);
     setHasSearched(true);
     setSearchTerm("");
     setSelectedBids([]);
-    
-    // ALTERAÇÃO: Objeto de ação para o toast com o ícone
+
     const cancelAction = {
       label: <XIcon className="h-5 w-5" />,
       altText: "Cancelar",
       onClick: () => abortControllerRef.current?.abort(),
     };
-  
+
     const toastId = isInitialLoad ? undefined : toast.loading("Buscando licitações...", {
       description: "Aguarde enquanto consultamos o banco de dados.",
       action: cancelAction,
     });
-  
+
     try {
       const res = await fetch(BACKEND_API_ROUTE, {
         method: "POST",
@@ -155,31 +162,31 @@ export default function Home() {
         body: JSON.stringify({ filters }),
         signal,
       });
-  
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: 'Não foi possível ler a resposta do servidor.' }));
         throw new Error(errorData.message || `Erro ${res.status}: Ocorreu um problema no servidor.`);
       }
-  
+
       if (!res.body) throw new Error("A resposta do servidor está vazia.");
-  
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-  
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-  
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-  
+
         for (const line of lines) {
           if (!line) continue;
           try {
             const json = JSON.parse(line);
-            
+
             if (toastId) {
               switch (json.type) {
                 case 'start':
@@ -190,7 +197,7 @@ export default function Home() {
                   });
                   break;
                 case 'progress':
-                  const processed = (json.chunk - 1) * 150; // Aproximação
+                  const processed = (json.chunk - 1) * 150; 
                   toast.loading(`Analisando com IA (Lote ${json.chunk} de ${json.totalChunks})`, {
                     id: toastId,
                     description: `Itens analisados: ~${processed.toLocaleString('pt-BR')}...`,
@@ -201,7 +208,7 @@ export default function Home() {
                   throw new Error(json.message);
               }
             }
-            
+
             if (json.type === 'result') {
               setAllResults(json.resultados || []);
               const totalFinal = json.totalFinal || 0;
@@ -216,7 +223,7 @@ export default function Home() {
                 if (totalFinal > 0) {
                   const useGemini = filters.useGeminiAnalysis !== false;
                   const successMessage = `Busca concluída!`;
-                  const description = useGemini 
+                  const description = useGemini
                     ? `${totalFinal.toLocaleString('pt-BR')} licitações relevantes encontradas.`
                     : `${totalFinal.toLocaleString('pt-BR')} licitações encontradas com os filtros aplicados.`;
 
@@ -229,9 +236,9 @@ export default function Home() {
                 }
               }
             }
-          } catch (e) { 
+          } catch (e) {
             if (toastId) toast.error("Erro de comunicação", { id: toastId, description: "Houve um problema ao processar os dados recebidos." });
-            console.error("Erro ao processar o stream:", e, "Linha:", line); 
+            console.error("Erro ao processar o stream:", e, "Linha:", line);
           }
         }
       }
@@ -403,8 +410,31 @@ export default function Home() {
                     <div className="flex flex-col md:flex-row justify-between gap-3 mb-3">
                       <h4 className="font-semibold text-gray-800 flex-1">{licitacao.objetoCompra || "Objeto não informado"}</h4>
                       <div className="flex items-center flex-wrap gap-2">
-                        {licitacao.numeroCompra && <Badge variant="outline" className="whitespace-nowrap"><FileText className="w-3.5 h-3.5 mr-1.5" />{licitacao.numeroCompra}/{licitacao.anoCompra}</Badge>}
-                        {licitacao.modalidadeNome && <Badge variant="outline" className="whitespace-nowrap"><Newspaper className="w-3.5 h-3.5 mr-1.5" />{licitacao.modalidadeNome}</Badge>}
+                        {licitacao.numeroCompra && (
+                          <Badge
+                            variant="outline"
+                            className="whitespace-nowrap cursor-pointer"
+                            onClick={() => handleOpenDetailDialog(licitacao)}
+                          >
+                            <FileText className="w-3.5 h-3.5 mr-1.5" />
+                            {licitacao.numeroCompra}/{licitacao.anoCompra}
+                          </Badge>
+                        )}
+                        {licitacao.modalidadeNome && (
+                          licitacao.linkSistemaOrigem ? (
+                            <a href={licitacao.linkSistemaOrigem} target="_blank" rel="noopener noreferrer">
+                              <Badge variant="outline" className="whitespace-nowrap">
+                                <Newspaper className="w-3.5 h-3.5 mr-1.5" />
+                                {licitacao.modalidadeNome}
+                              </Badge>
+                            </a>
+                          ) : (
+                            <Badge variant="outline" className="whitespace-nowrap">
+                              <Newspaper className="w-3.5 h-3.5 mr-1.5" />
+                              {licitacao.modalidadeNome}
+                            </Badge>
+                          )
+                        )}
                         {licitacao.situacaoCompraNome && <Badge variant={getSituacaoBadgeVariant(licitacao.situacaoCompraNome)} className="capitalize whitespace-nowrap">{licitacao.situacaoCompraNome.toLowerCase()}</Badge>}
                       </div>
                     </div>
@@ -488,6 +518,11 @@ export default function Home() {
           )
         )}
       </main>
+      <LicitacaoDetailDialog
+        licitacao={selectedLicitacao}
+        isOpen={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+      />
       <Toaster richColors position="bottom-left" />
     </div>
   )
