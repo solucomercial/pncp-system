@@ -1,6 +1,5 @@
 // src/lib/schemas.ts
 import { z } from 'zod';
-import { createDocument } from 'zod-openapi';
 
 // --- Schemas para Autenticação ---
 
