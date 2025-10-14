@@ -1,13 +1,25 @@
+// src/app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { registerUserSchema } from "@/lib/schemas";
 
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
  try {
   const body = await request.json();
-  const { email, password, name, invitationCode } = body;
+  
+  // Valida o corpo da requisição com o schema Zod
+  const validation = registerUserSchema.safeParse(body);
+  if (!validation.success) {
+   return new NextResponse(
+    JSON.stringify({ message: "Dados inválidos.", errors: validation.error.flatten() }),
+    { status: 400, headers: { 'Content-Type': 'application/json' } }
+   );
+  }
+
+  const { email, password, name, invitationCode } = validation.data;
 
   const secretCode = process.env.REGISTRATION_INVITE_CODE;
 
@@ -19,14 +31,6 @@ export async function POST(request: Request) {
    );
   }
 
-  if (!email || !password || !name || !invitationCode) {
-   return new NextResponse(
-    JSON.stringify({ message: "Todos os campos são obrigatórios." }),
-    { status: 400, headers: { 'Content-Type': 'application/json' } }
-   );
-  }
-
-  // Validação do código de convite
   if (invitationCode !== secretCode) {
    return new NextResponse(
     JSON.stringify({ message: "Código de convite inválido." }),
@@ -55,7 +59,10 @@ export async function POST(request: Request) {
    },
   });
 
-  return NextResponse.json(user);
+  // Remove a senha antes de enviar a resposta
+  const { password: _, ...userWithoutPassword } = user;
+
+  return NextResponse.json(userWithoutPassword);
 
  } catch (error) {
   console.error("ERRO NO REGISTO:", error);
