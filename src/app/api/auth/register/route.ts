@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   });
 
   // Remove a senha antes de enviar a resposta
-  const { password: userPassword, ...userWithoutPassword } = user;
+const { password: _, ...userWithoutPassword } = user;
 
   return NextResponse.json(userWithoutPassword);
 
