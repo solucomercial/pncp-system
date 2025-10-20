@@ -2,15 +2,15 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
-import Link from "next/link"; // 1. Importar o Link
-import { LogOut, MoreVertical, BookText } from "lucide-react"; // 2. Importar um ícone
+// Link e BookText foram removidos das importações
+import { LogOut, MoreVertical } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
  DropdownMenu,
  DropdownMenuContent,
  DropdownMenuItem,
- DropdownMenuSeparator, // 3. Importar o Separator
+ // DropdownMenuSeparator foi removido das importações
  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "./ui/button";
@@ -59,14 +59,7 @@ export function UserNav() {
     </Button>
    </DropdownMenuTrigger>
    <DropdownMenuContent className="w-50" align="start">
-    {/* 4. Adicionar o novo item de menu para a documentação */}
-    <DropdownMenuItem asChild>
-     <Link href="/docs">
-      <BookText className="mr-2 h-4 w-4" />
-      <span>Documentação da API</span>
-     </Link>
-    </DropdownMenuItem>
-    <DropdownMenuSeparator /> {/* Separador visual */}
+    {/* O item de menu da documentação e o separador foram removidos */}
     <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/login' })}>
      <LogOut className="mr-2 h-4 w-4" />
      <span>Sair</span>
