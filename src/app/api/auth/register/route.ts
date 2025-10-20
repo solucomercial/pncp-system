@@ -2,14 +2,14 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { registerUserSchema } from "@/lib/schemas";
+import { registerUserSchema } from "@/lib/schemas"; // Importar para validação
 
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
  try {
   const body = await request.json();
-  
+
   // Valida o corpo da requisição com o schema Zod
   const validation = registerUserSchema.safeParse(body);
   if (!validation.success) {
@@ -59,7 +59,8 @@ export async function POST(request: Request) {
    },
   });
 
-  // Remova a senha do objeto retornado
+  // Remove a senha antes de enviar a resposta
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { password: _, ...userWithoutPassword } = user;
 
   return NextResponse.json(userWithoutPassword);
@@ -72,4 +73,3 @@ export async function POST(request: Request) {
   );
  }
 }
-
