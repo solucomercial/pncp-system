@@ -108,7 +108,7 @@ export async function analyzeAndFilterBids(
 
     const prompt = `
 <MISSION>
-Você é um analista de negócios sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA. Sua missão é identificar oportunidades de negócio em uma lista de licitações, sendo flexível e estratégico. Você não deve apenas filtrar, mas também classificar a relevância e encontrar oportunidades em áreas similares.
+Você é um analista de negócios sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA. Sua missão é classificar TODAS as licitações de uma lista, indicando se são oportunidades de negócio viáveis ('Principal' ou 'Adjacente') ou inviáveis ('Inviável') para a empresa, sempre fornecendo uma justificativa curta e objetiva.
 </MISSION>
 
 <COMPANY_PROFILE>
@@ -128,20 +128,21 @@ Identifique licitações que, embora não sejam nosso core business, são viáve
   - Pequenos serviços de jardinagem e paisagismo (relacionado a Manutenção).
   - Locação de equipamentos para obras (relacionado a Engenharia).
 
-**ÁREAS DE BAIXA PRIORIDADE (Evitar, mas não excluir cegamente):**
+**ÁREAS DE BAIXA PRIORIDADE / NÃO-INTERESSE (Geralmente Inviáveis):**
 - **Eventos**: Buffet, festas, shows, decoração.
 - **Varejo/Alimentação Específica**: Compra de pães, bolos, coffee break.
 - **Serviços Hiper-especializados**: Construção de pontes, recapeamento asfáltico, segurança armada, consultorias.
 - **Locação SEM Motorista**.
+- **Outros**: Controle de pragas, serviços automotivos específicos, educação/social, etc.
 </COMPANY_PROFILE>
 
 <INSTRUCTIONS>
-1.  Analise cada licitação da lista a seguir.
-2.  Classifique cada oportunidade viável com um nível de 'relevancia': 'Principal' ou 'Adjacente'.
-3.  Para cada licitação viável, escreva uma 'justificativa' curta e objetiva.
-4.  Ignore completamente as licitações de baixa prioridade, a menos que identifique uma oportunidade estratégica clara.
-5.  Sua única saída deve ser um array JSON contendo os objetos das licitações que você aprovou.
-6.  Se nenhuma licitação for viável, retorne um array vazio: [].
+1.  Analise **CADA** licitação da lista fornecida em <BIDS_TO_ANALYZE>.
+2.  **Para CADA licitação**, classifique-a com um nível de 'relevancia': 'Principal', 'Adjacente' ou 'Inviável'.
+3.  **Para CADA licitação**, escreva uma 'justificativa' curta e objetiva explicando a classificação (por que é viável ou por que não é).
+4.  Utilize as definições do <COMPANY_PROFILE> para guiar sua análise. Licitações em 'ÁREAS DE BAIXA PRIORIDADE' devem ser marcadas como 'Inviável', a menos que haja uma razão estratégica muito clara (neste caso, explique na justificativa).
+5.  Sua única saída deve ser um array JSON contendo **TODOS** os objetos das licitações analisadas, cada um com 'numeroControlePNCP', 'relevancia' e 'justificativa'.
+6.  Se a lista de entrada for vazia, retorne um array vazio: [].
 </INSTRUCTIONS>
 
 <BIDS_TO_ANALYZE>
@@ -151,14 +152,24 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 <OUTPUT_JSON_FORMAT>
 [
   {
-    "numeroControlePNCP": "ID_DA_LICITACAO",
+    "numeroControlePNCP": "ID_LICITACAO_VIAVEL_1",
     "relevancia": "Principal",
     "justificativa": "Encaixa-se perfeitamente em nossa atuação de Limpeza Hospitalar."
   },
   {
-    "numeroControlePNCP": "ID_DE_OUTRA_LICITACAO",
+    "numeroControlePNCP": "ID_LICITACAO_ADJACENTE",
     "relevancia": "Adjacente",
     "justificativa": "Oportunidade para fornecer materiais de limpeza em grande escala, sinérgico com nossos serviços."
+  },
+  {
+    "numeroControlePNCP": "ID_LICITACAO_INVIAVEL_1",
+    "relevancia": "Inviável",
+    "justificativa": "Objeto da licitação (Organização de Eventos) fora do escopo da empresa."
+  },
+  {
+    "numeroControlePNCP": "ID_LICITACAO_INVIAVEL_2",
+    "relevancia": "Inviável",
+    "justificativa": "Serviço de segurança armada, área de não-interesse."
   }
 ]
 </OUTPUT_JSON_FORMAT>
