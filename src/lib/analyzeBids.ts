@@ -1,38 +1,45 @@
 import { GoogleGenerativeAI, GoogleGenerativeAIError, GenerateContentResult } from '@google/generative-ai';
 import { PncpLicitacao } from './types';
 
+// Garante que a chave da API está definida
 if (!process.env.GOOGLE_API_KEY) {
   console.error("❌ FATAL: GOOGLE_API_KEY não está definida nas variáveis de ambiente.");
   throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
 }
 
+// Inicializa o cliente da IA Generativa do Google
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
+// Configura o modelo a ser usado (gemini-1.5-flash foi o que resolveu o 404)
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash", // Modelo que funcionou para evitar o 404
   generationConfig: {
-    temperature: 0.2,
-    responseMimeType: "application/json",
+    temperature: 0.2, // Baixa temperatura para respostas mais consistentes/determinísticas
+    responseMimeType: "application/json", // Solicita resposta em formato JSON
   }
 });
 
 function extractJsonFromString(text: string): string | null {
+  // Regex para encontrar ```json ... ``` ou um objeto/array JSON
   const match = text.match(/```json\s*([\s\S]*?)\s*```|(\[[\s\S]*\]|\{[\s\S]*\})/);
   if (match) {
+    // Retorna o conteúdo dentro de ```json ... ``` (grupo 1) ou o objeto/array JSON (grupo 2)
     return match[1] || match[2];
   }
-  return null;
+  return null; // Retorna null se nenhum JSON for encontrado
 }
 
 async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise<GenerateContentResult> {
   let attempt = 0;
   while (attempt < maxRetries) {
     try {
+      // Tenta gerar o conteúdo usando o modelo configurado
       const result = await model.generateContent(prompt);
-      return result;
+      return result; // Retorna o resultado se bem-sucedido
     } catch (error) {
       const apiError = error as unknown;
-      
+
+      // Verifica se é um erro da API do Google e se é 503 (Serviço Indisponível) ou 429 (Limite de Taxa)
       if (
         apiError instanceof GoogleGenerativeAIError &&
         (typeof apiError.message === 'string' && apiError.message.includes('503') ||
@@ -40,6 +47,7 @@ async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise
       ) {
         attempt++;
         const isRateLimit = (apiError as { status?: number }).status === 429;
+        // Calcula o tempo de espera (backoff exponencial para 503, fixo para 429)
         const delayTime = isRateLimit ? 61000 : Math.pow(2, attempt) * 1000;
 
         if (attempt >= maxRetries) {
@@ -48,15 +56,19 @@ async function generateContentWithRetry(prompt: string, maxRetries = 3): Promise
         }
 
         console.warn(`⚠️ Serviço do Gemini retornou status ${(apiError as { status?: number }).status || '503'}. Tentando novamente em ${delayTime / 1000}s...`);
+        // Aguarda antes de tentar novamente
         await new Promise(resolve => setTimeout(resolve, delayTime));
       } else {
+        // Se for outro tipo de erro, lança-o imediatamente
         throw error;
       }
     }
   }
+  // Se esgotar as tentativas, lança um erro final
   throw new Error('Falha ao gerar conteúdo após múltiplas tentativas.');
 }
 
+// Tipos para atualização de progresso via callback
 type ProgressUpdate = {
   type: 'progress' | 'start' | 'complete' | 'error';
   message: string;
@@ -64,14 +76,15 @@ type ProgressUpdate = {
   totalChunks?: number;
   total?: number;
   processed?: number;
-  data?: PncpLicitacao[];
+  data?: PncpLicitacao[]; // Pode incluir dados nos updates, se necessário
 };
 
 type ProgressCallback = (update: ProgressUpdate) => void;
 
+// Interface para o objeto esperado da análise da IA
 interface ViableBid {
     numeroControlePNCP: string;
-    relevancia: 'Principal' | 'Adjacente';
+    relevancia: 'Principal' | 'Adjacente' | 'Inviável'; // Inclui 'Inviável' como opção
     justificativa: string;
 }
 
@@ -83,13 +96,15 @@ export async function analyzeAndFilterBids(
     return [];
   }
 
-  const allViableBids: PncpLicitacao[] = [];
-  const CHUNK_SIZE = 150;
+  const allViableBids: PncpLicitacao[] = []; // Armazena as licitações viáveis
+  const CHUNK_SIZE = 150; // Tamanho do lote para enviar à IA (ajuste conforme necessário)
+  // Divide as licitações em lotes (chunks)
   const chunks = Array.from({ length: Math.ceil(licitacoes.length / CHUNK_SIZE) }, (_, i) =>
     licitacoes.slice(i * CHUNK_SIZE, i * CHUNK_SIZE + CHUNK_SIZE)
   );
   const totalChunks = chunks.length;
 
+  // Envia o update inicial de progresso
   onProgress({
     type: 'start',
     message: `Analisando ${licitacoes.length.toLocaleString('pt-BR')} licitações com IA...`,
@@ -101,11 +116,13 @@ export async function analyzeAndFilterBids(
   for (const chunk of chunks) {
     const chunkNumber = chunkIndex + 1;
 
+    // Simplifica os dados enviados para a IA, contendo apenas o ID e o objeto
     const simplifiedBids = chunk.map(lic => ({
       numeroControlePNCP: lic.numeroControlePNCP,
       objetoCompra: lic.objetoCompra,
     }));
 
+    // Monta o prompt para a IA
     const prompt = `
 <MISSION>
 Você é um analista de negócios sênior da empresa SOLUÇÕES SERVIÇOS TERCEIRIZADOS LTDA. Sua missão é classificar TODAS as licitações de uma lista, indicando se são oportunidades de negócio viáveis ('Principal' ou 'Adjacente') ou inviáveis ('Inviável') para a empresa, sempre fornecendo uma justificativa curta e objetiva.
@@ -141,7 +158,7 @@ Identifique licitações que, embora não sejam nosso core business, são viáve
 2.  **Para CADA licitação**, classifique-a com um nível de 'relevancia': 'Principal', 'Adjacente' ou 'Inviável'.
 3.  **Para CADA licitação**, escreva uma 'justificativa' curta e objetiva explicando a classificação (por que é viável ou por que não é).
 4.  Utilize as definições do <COMPANY_PROFILE> para guiar sua análise. Licitações em 'ÁREAS DE BAIXA PRIORIDADE' devem ser marcadas como 'Inviável', a menos que haja uma razão estratégica muito clara (neste caso, explique na justificativa).
-5.  Sua única saída deve ser um array JSON contendo **TODOS** os objetos das licitações analisadas, cada um com 'numeroControlePNCP', 'relevancia' e 'justificativa'.
+5.  Sua única saída deve ser um array JSON contendo **TODOS** os objetos das licitações analisadas, cada um com 'numeroControlePNCP', 'relevancia' e 'justificativa'. Certifique-se de que o JSON seja estritamente válido.
 6.  Se a lista de entrada for vazia, retorne um array vazio: [].
 </INSTRUCTIONS>
 
@@ -176,6 +193,7 @@ ${JSON.stringify(simplifiedBids, null, 2)}
 `;
 
     try {
+      // Envia update de progresso para o lote atual
       onProgress({
         type: 'progress',
         message: `Analisando lote ${chunkNumber} de ${totalChunks}...`,
@@ -183,42 +201,94 @@ ${JSON.stringify(simplifiedBids, null, 2)}
         totalChunks,
       });
 
+      // Chama a IA para gerar a análise
       const result = await generateContentWithRetry(prompt);
       const response = await result.response;
-      const rawText = response.text();
+      const rawText = response.text(); // Pega a resposta crua da IA
 
       if (rawText) {
+        // Extrai o JSON da resposta crua
         const jsonText = extractJsonFromString(rawText);
         if (jsonText) {
           try {
-            // A resposta agora tem um formato diferente
-            const viableBidsFromAI = JSON.parse(jsonText) as ViableBid[];
-            const viablePncpIds = new Set(viableBidsFromAI.map(b => b.numeroControlePNCP));
+            // --- LIMPEZA DO JSON ANTES DO PARSE ---
+            // Remove trailing commas (vírgulas antes de colchetes/chaves de fechamento)
+            // e vírgulas extras entre elementos de array/objeto
+            const cleanedJsonText = jsonText
+              .replace(/,\s*([}\]])/g, "$1") // Remove vírgulas antes de } ou ]
+              .replace(/([}\]])\s*,?\s*(?=[}\]])/g, "$1"); // Tenta remover vírgulas entre } ou ] (mais robusto)
 
+            // Faz o parse do JSON limpo
+            const analysisResults = JSON.parse(cleanedJsonText) as ViableBid[];
+
+            // Log opcional para depuração
+            // console.log(`--- JSON Extraído e Limpo (Lote ${chunkNumber}) ---`);
+            // console.log(cleanedJsonText);
+
+            // Cria um Set com os IDs das licitações classificadas como 'Principal' ou 'Adjacente'
+            const viablePncpIds = new Set(
+              analysisResults
+                .filter(b => b.relevancia === 'Principal' || b.relevancia === 'Adjacente') // Filtra apenas as viáveis
+                .map(b => b.numeroControlePNCP) // Pega apenas os IDs
+            );
+
+            // Filtra o lote original mantendo apenas as licitações cujos IDs estão no Set de viáveis
             const filteredChunk = chunk.filter(lic => viablePncpIds.has(lic.numeroControlePNCP));
+            // Adiciona as licitações filtradas do lote atual ao resultado final
             allViableBids.push(...filteredChunk);
+            // -------- FIM DAS MODIFICAÇÕES --------
 
           } catch (parseError) {
-            console.error(`❌ Erro de parse JSON no lote ${chunkNumber} mesmo após extração:`, parseError);
-            console.error('JSON extraído que falhou:', jsonText);
+            // Se o parse falhar mesmo após a limpeza, loga o erro e o JSON problemático
+            console.error(`❌ Erro de parse JSON no lote ${chunkNumber} mesmo após limpeza:`, parseError);
+            console.error('JSON extraído (antes da limpeza) que falhou:', jsonText);
+            // Pode ser útil logar o JSON após a limpeza também para depuração
+            // console.error('JSON após tentativa de limpeza:', cleanedJsonText);
+             onProgress({
+                type: 'error',
+                message: `Erro ao interpretar a análise da IA para o lote ${chunkNumber}.`,
+             });
           }
         } else {
+          // Se não conseguir extrair JSON da resposta
           console.warn(`⚠️ Não foi possível extrair JSON da resposta do lote ${chunkNumber}. Resposta crua:`, rawText);
+           onProgress({
+              type: 'error',
+              message: `Resposta inesperada da IA para o lote ${chunkNumber}.`,
+           });
         }
       } else {
+        // Se a IA retornar uma resposta vazia
         console.warn(`⚠️ Lote ${chunkNumber} retornou uma resposta vazia.`);
+         onProgress({
+            type: 'error',
+            message: `A IA não respondeu para o lote ${chunkNumber}.`,
+         });
       }
     } catch (error) {
+      // Se ocorrer um erro durante a chamada à API ou processamento
       console.error(`❌ Erro ao analisar o lote ${chunkNumber} com Gemini:`, error);
+      // Notifica o frontend sobre o erro no lote
+      onProgress({
+        type: 'error',
+        message: `Erro ao processar lote ${chunkNumber}. Detalhes no console.`,
+      });
     }
 
+    // Pequena pausa entre lotes para evitar sobrecarga (opcional, ajuste conforme necessário)
     if (chunkNumber < totalChunks) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Pausa de 1 segundo
     }
 
     chunkIndex++;
   }
 
+  // Log final e retorno das licitações filtradas
   console.log(`✅ Análise completa. Total de ${allViableBids.length} licitações consideradas viáveis.`);
+   onProgress({
+     type: 'complete', // Indica que a análise foi concluída (pode ser usado para fechar toast de loading)
+     message: 'Análise com IA finalizada.',
+     total: allViableBids.length // Pode enviar o total final se útil
+   });
   return allViableBids;
 }

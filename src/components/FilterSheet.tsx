@@ -209,7 +209,7 @@ export function FilterSheet({ isOpen, onOpenChange, onApplyFilters }: FilterShee
   setValorMax("");
   setEstado(null);
   setBlacklist(defaultBlacklist);
-  setUseGeminiAnalysis(true);
+  setUseGeminiAnalysis(false);
   setOutrasIsSelected(false);
  };
 
