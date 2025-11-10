@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { RegisterSchema } from "@/lib/schemas";
+import { registerUserSchema } from "@/lib/schemas";
 import bcryptjs from "bcryptjs";
+
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, password, name } = RegisterSchema.parse(body);
-
+    const { email, password, name } = registerUserSchema.parse(body)
     const hashedPassword = await bcryptjs.hash(password, 10);
-
     const existingUser = await db.select()
       .from(users)
       .where(eq(users.email, email))
@@ -24,7 +22,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
+    
     await db.insert(users).values({
       email: email,
       name: name,

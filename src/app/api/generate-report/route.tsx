@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-
 import { db } from "@/lib/db";
 import { pncpLicitacao } from "@/lib/db/schema";
 import { and, gte, lte, ilike } from "drizzle-orm";
@@ -17,7 +16,6 @@ function convertToCSV(data: any[]) {
       if (value === null || value === undefined) {
         value = "";
       } else if (typeof value === 'string') {
-
         value = `"${value.replace(/"/g, '""')}"`;
       } else if (value instanceof Date) {
         value = `"${value.toISOString()}"`;

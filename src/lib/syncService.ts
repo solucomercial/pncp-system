@@ -4,10 +4,7 @@ import { eq } from "drizzle-orm";
 import { pncp } from "./comprasApi";
 import { analyzeLicitacao } from "./analyzeBids";
 
-// Define um tipo para o objeto que vem da API, antes de ir para o DB
-// Usamos o tipo 'Insert' do Drizzle, mas omitimos 'id' (autoincrement)
 type NovaLicitacao = Omit<typeof pncpLicitacao.$inferInsert, 'id' | 'createdAt' | 'updatedAt'>;
-// Define o tipo completo da licitação analisada (com campos da IA)
 type LicitacaoAnalisada = typeof pncpLicitacao.$inferInsert;
 
 
@@ -63,7 +60,6 @@ export async function fetchLicitacoesFromPNCP(
       todasLicitacoes.push(
         ...licitacoesDaPagina.map(
           (item: any): NovaLicitacao => ({
-            // Mapeamento dos dados da API para o nosso schema Drizzle
             numeroControlePNCP: item.numeroControlePNCP,
             cnpjOrgao: item.orgao.cnpj,
             orgao: item.orgao.nome,
@@ -75,7 +71,6 @@ export async function fetchLicitacoesFromPNCP(
             modalidade: item.modalidade.nome,
             numeroProcesso: item.numeroProcesso,
             objetoCompra: item.objetoCompra,
-            // O Drizzle (com 'pg') prefere strings para 'decimal'
             valorEstimado: item.valorEstimado ? String(item.valorEstimado) : null,
             dataPublicacaoPNCP: new Date(item.dataPublicacaoPNCP),
             dataAtualizacao: new Date(item.dataAtualizacao),
@@ -115,16 +110,13 @@ async function analyzeBidsForStorage(licitacoes: NovaLicitacao[]) {
   
   for (const licitacao of licitacoes) {
     const analysis = await analyzeLicitacao(licitacao);
-    
-    // Prepara o objeto para o 'insert' (upsert)
+
     const licitacaoAnalisada: LicitacaoAnalisada = {
       ...licitacao,
-      // Garante que os campos da IA sejam adicionados
       iaResumo: analysis?.resumo || "N/A",
       iaPalavrasChave: analysis?.palavrasChave || [],
       grauRelevanciaIA: analysis?.grauRelevanciaIA || "Média",
       justificativaRelevanciaIA: analysis?.justificativaRelevanciaIA || "N/A",
-      // Define a data de atualização para o upsert
       updatedAt: new Date(),
     };
     
@@ -137,21 +129,15 @@ async function upsertLicitacoes(licitacoes: LicitacaoAnalisada[]) {
   if (licitacoes.length === 0) return 0;
 
   console.log(`[SyncService] Salvando ${licitacoes.length} licitações no banco...`);
-
-  // --- ATUALIZAÇÃO DRIZZLE (Upsert) ---
-  // O Drizzle usa onConflictDoUpdate para simular o 'upsert'
   
   for (const licitacao of licitacoes) {
     try {
       await db.insert(pncpLicitacao)
         .values(licitacao)
         .onConflictDoUpdate({
-          // O 'target' é a coluna 'unique' que define o conflito
           target: pncpLicitacao.numeroControlePNCP, 
-          // 'set' define quais colunas devem ser atualizadas
           set: {
             ...licitacao,
-            // Omite 'id' e 'numeroControlePNCP' do 'set'
             id: undefined,
             numeroControlePNCP: undefined,
           }
@@ -163,7 +149,6 @@ async function upsertLicitacoes(licitacoes: LicitacaoAnalisada[]) {
       );
     }
   }
-  // --- FIM DA ATUALIZAÇÃO ---
   
   return licitacoes.length;
 }
@@ -171,7 +156,6 @@ async function upsertLicitacoes(licitacoes: LicitacaoAnalisada[]) {
 export async function processDate(targetDate: string): Promise<number> {
   let licitacoesDoDia: NovaLicitacao[] = [];
   try {
-    // 1. Busca licitações da API PNCP
     licitacoesDoDia = await fetchLicitacoesFromPNCP(targetDate);
 
     if (licitacoesDoDia.length === 0) {
@@ -179,10 +163,8 @@ export async function processDate(targetDate: string): Promise<number> {
       return 0;
     }
 
-    // 2. Chama a análise da IA (agora usando Drizzle internamente)
     const licitacoesAnalisadas = await analyzeBidsForStorage(licitacoesDoDia);
 
-    // 3. Guarda licitações na base de dados (agora usando Drizzle)
     const count = await upsertLicitacoes(licitacoesAnalisadas);
     console.log(
       `[SyncService] Sincronização de ${targetDate} concluída. ${count} registros salvos.`,
@@ -203,9 +185,7 @@ export async function runSync(daysAgo: number = 1) {
   const dateString = targetDate.toISOString().split("T")[0];
 
   console.log(`[SyncService] Iniciando runSync para data: ${dateString}`);
-  
-  // --- ATUALIZAÇÃO DRIZZLE (Log) ---
-  // O 'returning' é necessário para obter o ID do log inserido
+
   const logEntries = await db.insert(syncLog)
     .values({
       date: new Date(dateString),
@@ -215,12 +195,10 @@ export async function runSync(daysAgo: number = 1) {
     .returning({ id: syncLog.id });
   
   const log = logEntries[0];
-  // --- FIM DA ATUALIZAÇÃO ---
 
   try {
     const recordsFetched = await processDate(dateString);
-    
-    // --- ATUALIZAÇÃO DRIZZLE (Log Success) ---
+
     await db.update(syncLog)
       .set({
         status: "success",
@@ -228,12 +206,10 @@ export async function runSync(daysAgo: number = 1) {
         recordsFetched: recordsFetched,
       })
       .where(eq(syncLog.id, log.id));
-    // --- FIM DA ATUALIZAÇÃO ---
     
     console.log(`[SyncService] runSync para ${dateString} concluído com sucesso.`);
   } catch (error: any) {
-    
-    // --- ATUALIZAÇÃO DRIZZLE (Log Failed) ---
+
     await db.update(syncLog)
       .set({
         status: "failed",
@@ -241,7 +217,6 @@ export async function runSync(daysAgo: number = 1) {
         errorMessage: error.message,
       })
       .where(eq(syncLog.id, log.id));
-    // --- FIM DA ATUALIZAÇÃO ---
     
     console.error(`[SyncService] runSync para ${dateString} falhou:`, error);
   }

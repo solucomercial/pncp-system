@@ -17,11 +17,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const params = Object.fromEntries(searchParams.entries());
+
     const validatedParams = searchParamsSchema.parse(params);
     const page = parseInt(validatedParams.page, 10);
     const pageSize = parseInt(validatedParams.pageSize, 10);
     const offset = (page - 1) * pageSize;
     const { dataInicial, dataFinal, query } = validatedParams;
+
     const conditions = [];
 
     if (dataInicial) {
@@ -35,7 +37,9 @@ export async function GET(request: Request) {
     if (query) {
       conditions.push(ilike(pncpLicitacao.objetoCompra, `%${query}%`));
     }
-    const whereClause = and(...conditions);
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     const licitacoes = await db.select()
       .from(pncpLicitacao)
       .where(whereClause)
@@ -59,7 +63,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     console.error("Erro ao buscar licitações:", error);
     return NextResponse.json(

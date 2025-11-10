@@ -1,5 +1,4 @@
-// Arquivo: src/app/page.tsx (Refatorado para Drizzle)
-
+// Arquivo: src/app/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import LicitacaoDetailDialog from "@/components/LicitacaoDetailDialog";
 import { UserNav } from "@/components/UserNav";
-import { FilterSheet } from "@/components/FilterSheet";
+import FilterSheet from "@/components/FilterSheet";
 import { Button } from "@/components/ui/button";
 import { Download, ListFilter } from "lucide-react";
 import { pncpLicitacao } from "@/lib/db/schema";
@@ -75,7 +74,7 @@ export default function Home() {
         throw new Error("Falha ao buscar licitações");
       }
       const data = await response.json();
-
+      
       setLicitacoes(data.licitacoes); 
       setTotal(data.total);
     } catch (error) {
@@ -100,7 +99,7 @@ export default function Home() {
   const handleFilterApply = (newFilters: Filters) => {
     setFilters(newFilters);
     setPage(1);
-    setIsSheetOpen(false); 
+    setIsSheetOpen(false);
   };
 
   const formatarData = (data: Date | string | null) => {
@@ -124,6 +123,7 @@ export default function Home() {
   const handleCardClick = (licitacao: Licitacao) => {
     setSelectedLicitacao(licitacao);
   };
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-10 w-full bg-background/95 shadow-sm backdrop-blur">
@@ -138,9 +138,12 @@ export default function Home() {
               <ListFilter className="mr-2 h-4 w-4" />
               Filtros
             </Button>
-            <Button variant="outline" size="sm" disabled>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
+            {/* Aponta a exportação para a API correta */}
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/api/generate-report?${new URLSearchParams(filters as Record<string, string>).toString()}`} download>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar
+              </a>
             </Button>
             <UserNav />
           </div>
@@ -197,7 +200,7 @@ export default function Home() {
                           variant={
                             licitacao.grauRelevanciaIA === "Alta"
                               ? "destructive"
-                              : licitacao.grauRelevanciaIA === "Média"
+                              : licitacao.graaRelevanciaIA === "Média"
                               ? "default"
                               : "secondary"
                           }
@@ -251,15 +254,15 @@ export default function Home() {
           </Pagination>
         )}
       </main>
+
       <LicitacaoDetailDialog
         licitacao={selectedLicitacao!}
         isOpen={!!selectedLicitacao}
         onClose={() => setSelectedLicitacao(null)}
       />
-
       <FilterSheet
         isOpen={isSheetOpen}
-        onClose={() => setIsSheetOpen(false)}
+        onOpenChange={setIsSheetOpen}
         onApply={handleFilterApply}
         currentFilters={filters}
       />

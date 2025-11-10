@@ -1,5 +1,4 @@
-// Arquivo: src/components/LicitacaoDetailDialog.tsx (Refatorado para Drizzle)
-
+// Arquivo: src/components/LicitacaoDetailDialog.tsx
 import {
   Dialog,
   DialogContent,
@@ -14,10 +13,10 @@ import { ThumbsUp, ThumbsDown, BrainCircuit } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
-import { pncpLicitacao } from "@/lib/db/schema";
+import { pncpLicitacao } from "@/lib/db/schema"; // Importa o TIPO
 
 interface LicitacaoDetailDialogProps {
-  licitacao: typeof pncpLicitacao.$inferSelect;
+  licitacao: typeof pncpLicitacao.$inferSelect; 
   isOpen: boolean;
   onClose: () => void;
 }
@@ -47,6 +46,7 @@ export default function LicitacaoDetailDialog({
   isOpen,
   onClose,
 }: LicitacaoDetailDialogProps) {
+  
   const [isVoting, setIsVoting] = useState(false);
 
   const handleVote = async (voto: 1 | -1) => {
@@ -81,6 +81,7 @@ export default function LicitacaoDetailDialog({
   };
 
   if (!isOpen) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
@@ -114,7 +115,6 @@ export default function LicitacaoDetailDialog({
               </div>
             </div>
 
-            {/* --- SEÇÃO DE FEEDBACK (Tarefa 8) --- */}
             {licitacao.grauRelevanciaIA && (
               <>
                 <Separator />
@@ -165,7 +165,6 @@ export default function LicitacaoDetailDialog({
                 </div>
               </>
             )}
-            {/* --- FIM DA SEÇÃO --- */}
 
             <Separator />
 
@@ -244,9 +243,7 @@ export default function LicitacaoDetailDialog({
         
         <div className="flex-shrink-0 pt-4 border-t">
           <LicitacaoChatDialog
-            cnpj={licitacao.cnpjOrgao}
-            ano={licitacao.anoCompra.toString()}
-            sequencial={licitacao.sequencialCompra.toString()}
+            cacheKey={`pncp:${licitacao.cnpjOrgao}:${licitacao.anoCompra}:${licitacao.sequencialCompra}`}
           />
         </div>
       </DialogContent>

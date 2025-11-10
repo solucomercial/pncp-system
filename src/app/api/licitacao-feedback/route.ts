@@ -12,13 +12,14 @@ const feedbackSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-
     const session = await getServerSession(authOptions);
+
+    // @ts-ignore
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
-
-    const userId = session.user.id;
+    // @ts-ignore
+    const userId = session.user.id as string;
 
     const body = await req.json();
     const validation = feedbackSchema.safeParse(body);
@@ -35,9 +36,9 @@ export async function POST(req: Request) {
         voto: voto,
       })
       .onConflictDoUpdate({
-        target: [relevanciaFeedback.userId, relevanciaFeedback.licitacaoPncpId],
+        target: [relevanciaFeedback.userId, relevanciaFeedback.licitacaoPncpId], 
         set: {
-          voto: voto,
+          voto: voto, 
         }
       })
       .returning();

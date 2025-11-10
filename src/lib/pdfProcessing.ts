@@ -1,23 +1,15 @@
-// Arquivo: src/lib/pdfProcessing.ts (Refatorado para Drizzle)
-
-// --- NOVAS IMPORTAÇÕES ---
 import { db } from "@/lib/db";
 import { licitacaoDocumento, pncpLicitacao } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-// --- FIM NOVAS IMPORTAÇÕES ---
-
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { generateEmbedding } from "./embedding";
 import { pncp } from "./comprasApi";
-
 // @ts-ignore
 import * as pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs";
 if (typeof window === "undefined") {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 }
 
-// Interface (Tipo) para a licitação vinda da API PNCP (antes do upsert)
-// Usamos 'any' por simplicidade, mas o ideal é tipar a resposta da API
 type ApiPncpLicitacao = any; 
 
 
@@ -68,12 +60,7 @@ function chunkText(
   return chunks;
 }
 
-/**
- * Tarefa 4 (Pipeline de ETL com Drizzle):
- * Processa todos os documentos de uma licitação.
- */
 export async function processAndEmbedDocuments(
-  // Recebe o tipo do nosso schema (ou o tipo da API)
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao, 
 ): Promise<string> {
   console.log(`[ETL] Processando documentos para: ${licitacao.numeroControlePNCP}`);
@@ -94,11 +81,9 @@ export async function processAndEmbedDocuments(
       console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP}.`);
       return "";
     }
-    
-    // --- ATUALIZAÇÃO DRIZZLE (Apagar chunks antigos) ---
+
     await db.delete(licitacaoDocumento)
       .where(eq(licitacaoDocumento.licitacaoPncpId, licitacao.numeroControlePNCP));
-    // --- FIM DA ATUALIZAÇÃO ---
 
     for (const file of pdfFiles) {
       try {
@@ -115,26 +100,21 @@ export async function processAndEmbedDocuments(
 
         console.log(`[ETL] Gerando ${chunks.length} embeddings para ${file.nome}...`);
 
-        // Prepara os dados para inserção em lote (bulk insert)
         const chunksToInsert = [];
 
         for (const chunk of chunks) {
           const embedding = await generateEmbedding(chunk);
           chunksToInsert.push({
-            // id: é gerado automaticamente (uuid)
             licitacaoPncpId: licitacao.numeroControlePNCP,
             nomeArquivo: file.nome,
             textoChunk: chunk,
-            embedding: embedding, // O 'toDriver' no schema trata a conversão
+            embedding: embedding,
           });
         }
 
-        // --- ATUALIZAÇÃO DRIZZLE (Inserir novos chunks) ---
-        // Insere todos os chunks de uma vez para este ficheiro
         if (chunksToInsert.length > 0) {
           await db.insert(licitacaoDocumento).values(chunksToInsert);
         }
-        // --- FIM DA ATUALIZAÇÃO ---
 
       } catch (docError) {
         console.error(`[ETL] Falha ao processar doc ${file.nome}:`, docError);

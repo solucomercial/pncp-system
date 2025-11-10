@@ -12,13 +12,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, FileText, ExternalLink, AlertTriangle } from "lucide-react"; // Importa AlertTriangle
+import { Send, AlertTriangle } from "lucide-react";
 import { type PncpLicitacao as Licitacao } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import ReactMarkdown from 'react-markdown';
-// --- CORREÇÃO: Remover importação não usada ---
-// import { cn } from "@/lib/utils";
-// ---------------------------------------------
+
 
 interface LicitacaoChatDialogProps {
   licitacao: Licitacao | null;
