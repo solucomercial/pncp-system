@@ -1,109 +1,81 @@
-import { NextResponse } from 'next/server';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { PncpLicitacao } from '@/lib/types';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
-export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+import { db } from "@/lib/db";
+import { pncpLicitacao } from "@/lib/db/schema";
+import { and, gte, lte, ilike } from "drizzle-orm";
 
-  if (!session) {
-    return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
+function convertToCSV(data: any[]) {
+  if (data.length === 0) {
+    return "";
   }
+  const headers = Object.keys(data[0]);
+  const csvRows = [headers.join(",")];
 
+  for (const row of data) {
+    const values = headers.map((header) => {
+      let value = row[header];
+      if (value === null || value === undefined) {
+        value = "";
+      } else if (typeof value === 'string') {
+
+        value = `"${value.replace(/"/g, '""')}"`;
+      } else if (value instanceof Date) {
+        value = `"${value.toISOString()}"`;
+      }
+      return value;
+    });
+    csvRows.push(values.join(","));
+  }
+  return csvRows.join("\n");
+}
+
+export async function GET(request: Request) {
   try {
-    const { licitacoes } = (await request.json()) as { licitacoes: PncpLicitacao[] };
+    const { searchParams } = new URL(request.url);
 
-    if (!licitacoes || licitacoes.length === 0) {
-      return NextResponse.json({ message: 'Nenhuma licitação selecionada.' }, { status: 400 });
+    const dataInicial = searchParams.get("dataInicial");
+    const dataFinal = searchParams.get("dataFinal");
+    const query = searchParams.get("query");
+
+    const conditions = [];
+
+    if (dataInicial) {
+      conditions.push(gte(pncpLicitacao.dataPublicacaoPNCP, new Date(dataInicial)));
+    }
+    if (dataFinal) {
+      const dataFinalMaisUm = new Date(dataFinal);
+      dataFinalMaisUm.setDate(dataFinalMaisUm.getDate() + 1);
+      conditions.push(lte(pncpLicitacao.dataPublicacaoPNCP, dataFinalMaisUm));
+    }
+    if (query) {
+      conditions.push(ilike(pncpLicitacao.objetoCompra, `%${query}%`));
     }
 
-    const sections = licitacoes.map((licitacao, index) => {
-      const children = [
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [new TextRun({ text: licitacao.objetoCompra || 'Objeto não informado', bold: true })],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Nº de Controle PNCP: ', bold: true }),
-            new TextRun(licitacao.numeroControlePNCP || 'N/A'),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Órgão: ', bold: true }),
-            new TextRun(licitacao.orgaoEntidade?.razaoSocial || 'N/A'),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Local: ', bold: true }),
-            new TextRun(`${licitacao.unidadeOrgao?.municipioNome || 'N/A'} / ${licitacao.unidadeOrgao?.ufSigla || 'N/A'}`),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Publicação: ', bold: true }),
-            new TextRun(licitacao.dataPublicacaoPncp ? new Date(licitacao.dataPublicacaoPncp).toLocaleString('pt-BR') : 'Não informado'),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Modalidade: ', bold: true }),
-            new TextRun(licitacao.modalidadeNome || 'Não informado'),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Valor Estimado: ', bold: true }),
-            new TextRun(
-              licitacao.valorTotalEstimado
-                ? licitacao.valorTotalEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                : 'Não informado'
-            ),
-          ],
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: 'Link PNCP: ', bold: true }),
-            new TextRun(`https://pncp.gov.br/app/editais/${licitacao.orgaoEntidade.cnpj}/${licitacao.anoCompra}/${licitacao.sequencialCompra}`),
-          ],
-        }),
-      ];
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    const licitacoes = await db.select()
+      .from(pncpLicitacao)
+      .where(whereClause);
 
-      if (index < licitacoes.length - 1) {
-        children.push(
-          new Paragraph({
-            thematicBreak: true,
-            spacing: {
-              after: 200,
-              before: 200,
-            },
-          })
-        );
-      }
+    if (licitacoes.length === 0) {
+      return NextResponse.json({ message: "Nenhum dado encontrado para o relatório." }, { status: 404 });
+    }
 
-      return { children };
-    }).flat();
+    const csvData = convertToCSV(licitacoes);
 
-    const doc = new Document({
-      sections: [{ children: sections.flatMap(s => s.children) }],
-    });
-
-    const buffer = await Packer.toBuffer(doc);
-
-    const responseHeaders = new Headers();
-    responseHeaders.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    responseHeaders.set('Content-Disposition', `attachment; filename="relatorio-licitacoes.docx"`);
-
-    return new Response(buffer as BodyInit, {
+    return new NextResponse(csvData, {
       status: 200,
-      headers: responseHeaders,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="relatorio_licitacoes.csv"`,
+      },
     });
 
   } catch (error) {
-    console.error('Erro ao gerar relatório:', error);
-    return NextResponse.json({ message: 'Erro interno ao gerar o relatório.' }, { status: 500 });
+    console.error("Erro ao gerar relatório:", error);
+    return NextResponse.json(
+      { error: "Erro interno do servidor" },
+      { status: 500 },
+    );
   }
 }
