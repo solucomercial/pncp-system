@@ -1,106 +1,253 @@
-"use client";
+// Arquivo: src/components/LicitacaoDetailDialog.tsx (Refatorado para Drizzle)
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { type PncpLicitacao as Licitacao } from "@/lib/types";
+import { Badge } from "./ui/badge";
+import { ScrollArea } from "./ui/scroll-area";
+import { Separator } from "./ui/separator";
+import { LicitacaoChatDialog } from "./LicitacaoChatDialog";
+import { ThumbsUp, ThumbsDown, BrainCircuit } from "lucide-react";
+import { Button } from "./ui/button";
+import { useState } from "react";
+import { toast } from "sonner";
+import { pncpLicitacao } from "@/lib/db/schema";
 
 interface LicitacaoDetailDialogProps {
-  licitacao: Licitacao | null;
+  licitacao: typeof pncpLicitacao.$inferSelect;
   isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }
 
+function formatarData(data: Date | string | null): string {
+  if (!data) return "N/A";
+  return new Date(data).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-const formatCurrency = (v: number | null | undefined) => v ? v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado";
-const formatGenericDateTime = (d: string | null | undefined) => d ? new Date(d).toLocaleString("pt-BR", { timeZone: 'America/Sao_Paulo' }) : "Não informado";
+function formatarValor(valor: any): string {
+  const num = Number(valor);
+  if (isNaN(num) || num === 0) return "N/A";
+  return num.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
 
-const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => {
-  if (!value) return null;
+export default function LicitacaoDetailDialog({
+  licitacao,
+  isOpen,
+  onClose,
+}: LicitacaoDetailDialogProps) {
+  const [isVoting, setIsVoting] = useState(false);
+
+  const handleVote = async (voto: 1 | -1) => {
+    setIsVoting(true);
+    try {
+      const response = await fetch("/api/licitacao-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          licitacaoPncpId: licitacao.numeroControlePNCP,
+          voto: voto,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Falha ao registrar voto.");
+      }
+      
+      toast.success("Obrigado pelo seu feedback!");
+      
+    } catch (error: any) {
+      console.error(error);
+      if (error.message === 'Não autorizado') {
+        toast.error("Você precisa estar logado para votar.");
+      } else {
+        toast.error("Erro ao enviar feedback.");
+      }
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
+  if (!isOpen) return null;
   return (
-    <div className="grid grid-cols-3 gap-2 text-sm">
-      <dt className="text-muted-foreground font-medium col-span-1">{label}:</dt>
-      <dd className="col-span-2">{value}</dd>
-    </div>
-  );
-};
-
-
-export function LicitacaoDetailDialog({ licitacao, isOpen, onOpenChange }: LicitacaoDetailDialogProps) {
-  if (!licitacao) return null;
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="pr-10">
-          <DialogTitle className="text-xl leading-tight text-primary">
-            {licitacao.objetoCompra}
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="pr-10">
+            Detalhes da Licitação
+            <Badge variant="secondary" className="ml-2">
+              {licitacao.modalidade}
+            </Badge>
           </DialogTitle>
-          <DialogDescription className="flex items-center gap-2 pt-1 flex-wrap">
-            <span>{licitacao.razaoSocialOrgaoEntidade}</span>
-            <Badge variant="outline">{licitacao.modalidadeNome}</Badge>
-            <Badge variant="secondary">{licitacao.numeroCompra}/{licitacao.anoCompra}</Badge>
-          </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto pr-4 space-y-6">
-          
-          {/* Informações Gerais */}
-          <div className="space-y-3">
-            <h4 className="font-semibold text-md">Informações Gerais</h4>
-            <Separator />
-            <dl className="space-y-2">
-              <DetailRow label="Nº Controle PNCP" value={licitacao.numeroControlePNCP} />
-              <DetailRow label="Processo" value={licitacao.processo} />
-              <DetailRow label="Modalidade" value={licitacao.modalidadeNome} />
-              <DetailRow label="Modo de Disputa" value={licitacao.modoDisputaNome} />
-              <DetailRow label="Instrumento" value={licitacao.tipoInstrumentoConvocatorioNome} />
-              <DetailRow label="Amparo Legal" value={licitacao.amparoLegal?.nome} />
-              {licitacao.informacaoComplementar && (
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <dt className="text-muted-foreground font-medium col-span-1">Inf. Complementar:</dt>
-                  <dd className="col-span-2 bg-muted/50 p-2 rounded-md text-xs">{licitacao.informacaoComplementar}</dd>
-                </div>
-              )}
-               {licitacao.justificativaPresencial && (
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <dt className="text-muted-foreground font-medium col-span-1">Just. Presencial:</dt>
-                  <dd className="col-span-2 bg-muted/50 p-2 rounded-md text-xs">{licitacao.justificativaPresencial}</dd>
-                </div>
-              )}
-            </dl>
-          </div>
+        
+        <ScrollArea className="flex-grow pr-6">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Órgão</span>
+                <p className="text-muted-foreground">{licitacao.orgao}</p>
+              </div>
+              <div>
+                <span className="font-semibold">Publicação (PNCP)</span>
+                <p className="text-muted-foreground">
+                  {formatarData(licitacao.dataPublicacaoPNCP)}
+                </p>
+              </div>
+              <div>
+                <span className="font-semibold">Valor Estimado</span>
+                <p className="text-muted-foreground font-bold">
+                  {formatarValor(licitacao.valorEstimado)}
+                </p>
+              </div>
+            </div>
 
-          {/* Valores e Datas */}
-          <div className="space-y-3">
-            <h4 className="font-semibold text-md">Valores e Datas</h4>
-            <Separator />
-            <dl className="space-y-2">
-              <DetailRow label="Valor Estimado" value={<span className="font-bold text-green-700">{formatCurrency(licitacao.valorTotalEstimado)}</span>} />
-              <DetailRow label="Valor Homologado" value={formatCurrency(licitacao.valorTotalHomologado)} />
-              <DetailRow label="Publicação PNCP" value={formatGenericDateTime(licitacao.dataPublicacaoPncp)} />
-              <DetailRow label="Abertura Propostas" value={formatGenericDateTime(licitacao.dataAberturaProposta)} />
-              <DetailRow label="Encerramento Propostas" value={formatGenericDateTime(licitacao.dataEncerramentoProposta)} />
-            </dl>
-          </div>
+            {/* --- SEÇÃO DE FEEDBACK (Tarefa 8) --- */}
+            {licitacao.grauRelevanciaIA && (
+              <>
+                <Separator />
+                <div className="space-y-3 p-4 bg-secondary/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit className="w-5 h-5 text-primary" />
+                    <h4 className="font-semibold text-lg">Análise de Relevância (IA)</h4>
+                  </div>
+                  
+                  <Badge 
+                    variant={
+                      licitacao.grauRelevanciaIA === "Alta" ? "destructive" :
+                      licitacao.grauRelevanciaIA === "Média" ? "default" :
+                      "secondary"
+                    }
+                    className="text-sm font-semibold"
+                  >
+                    Relevância {licitacao.grauRelevanciaIA}
+                  </Badge>
+                  
+                  {licitacao.justificativaRelevanciaIA && (
+                     <p className="text-sm text-muted-foreground italic">
+                      "{licitacao.justificativaRelevanciaIA}"
+                     </p>
+                  )}
 
-          {/* Órgão */}
-          <div className="space-y-3">
-            <h4 className="font-semibold text-md">Órgão Responsável</h4>
+                  <div className="flex items-center gap-4 pt-2">
+                    <p className="text-sm font-medium">Esta análise foi útil?</p>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleVote(1)}
+                      disabled={isVoting}
+                      title="Análise útil"
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleVote(-1)}
+                      disabled={isVoting}
+                      title="Análise não foi útil"
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+            {/* --- FIM DA SEÇÃO --- */}
+
             <Separator />
-            <dl className="space-y-2">
-              <DetailRow label="Razão Social" value={licitacao.orgaoEntidade.razaoSocial} />
-              <DetailRow label="CNPJ" value={licitacao.orgaoEntidade.cnpj} />
-              <DetailRow label="Unidade" value={licitacao.unidadeOrgao.nomeUnidade} />
-              <DetailRow label="Localidade" value={`${licitacao.unidadeOrgao.municipioNome} - ${licitacao.unidadeOrgao.ufSigla}`} />
-              {licitacao.linkSistemaOrigem && <DetailRow label="Link de Origem" value={<a href={licitacao.linkSistemaOrigem} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{licitacao.linkSistemaOrigem}</a>} />}
-            </dl>
+
+            <div>
+              <h4 className="font-semibold mb-1">Objeto da Compra</h4>
+              <p className="text-sm text-muted-foreground">
+                {licitacao.objetoCompra}
+              </p>
+            </div>
+
+            {licitacao.iaResumo && licitacao.iaResumo !== "Análise de IA falhou." && (
+              <div>
+                <h4 className="font-semibold mb-1">Resumo (IA)</h4>
+                <p className="text-sm text-muted-foreground italic">
+                  {licitacao.iaResumo}
+                </p>
+              </div>
+            )}
+
+            {licitacao.iaPalavrasChave && licitacao.iaPalavrasChave.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">Palavras-chave (IA)</h4>
+                <div className="flex flex-wrap gap-2">
+                  {licitacao.iaPalavrasChave.map((keyword) => (
+                    <Badge key={keyword} variant="outline">
+                      {keyword}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Separator />
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+               <div>
+                <span className="font-semibold">Unidade</span>
+                <p className="text-muted-foreground">{licitacao.unidadeOrgao}</p>
+              </div>
+               <div>
+                <span className="font-semibold">Município/UF</span>
+                <p className="text-muted-foreground">{licitacao.municipio}/{licitacao.uf}</p>
+              </div>
+               <div>
+                <span className="font-semibold">Situação</span>
+                <p className="text-muted-foreground">{licitacao.situacao}</p>
+              </div>
+               <div>
+                <span className="font-semibold">Processo</span>
+                <p className="text-muted-foreground">{licitacao.numeroProcesso}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-2">
+               <Button variant="outline" asChild>
+                <a
+                  href={licitacao.linkPNCP ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Ver no PNCP
+                </a>
+              </Button>
+               <Button variant="outline" asChild>
+                 <a
+                  href={licitacao.linkSistemaOrigem ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Sistema de Origem
+                </a>
+              </Button>
+            </div>
           </div>
+        </ScrollArea>
+        
+        <div className="flex-shrink-0 pt-4 border-t">
+          <LicitacaoChatDialog
+            cnpj={licitacao.cnpjOrgao}
+            ano={licitacao.anoCompra.toString()}
+            sequencial={licitacao.sequencialCompra.toString()}
+          />
         </div>
       </DialogContent>
     </Dialog>

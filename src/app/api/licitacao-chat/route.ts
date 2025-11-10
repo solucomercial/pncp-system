@@ -1,316 +1,166 @@
-import { NextResponse, NextRequest } from 'next/server';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from '@google/generative-ai';
-import axios from 'axios';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import { pncpApi } from '@/lib/comprasApi'; // Reutiliza instância axios
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+// Arquivo: src/app/api/licitacao-chat/route.ts (Refatorado para Drizzle RAG)
+import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateQueryEmbedding } from "@/lib/embedding"; // O nosso ficheiro de embedding
 
-// --- CORREÇÃO DA IMPORTAÇÃO ---
-// A biblioteca 'pdf-parse' usa exportação CommonJS (module.exports).
-// No TypeScript/ESM, a forma correta de importar isso é usando 'import ... = require(...)'.
-import pdf = require('pdf-parse');
-// -----------------------------
+// --- NOVAS IMPORTAÇÕES DRIZZLE ---
+import { db } from "@/lib/db";
+import { licitacaoDocumento, pncpLicitacao } from "@/lib/db/schema";
+import { eq, sql, and } from "drizzle-orm";
+// --- FIM NOVAS IMPORTAÇÕES ---
 
-// Configuração do Gemini
-const API_KEY = process.env.GOOGLE_API_KEY;
-if (!API_KEY) {
-    console.error("❌ FATAL: GOOGLE_API_KEY não está definida.");
-    throw new Error('GOOGLE_API_KEY não está definida nas variáveis de ambiente');
-}
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Inicializa o modelo generativo (para responder)
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-pro-latest",
+  generationConfig: {
+    temperature: 0.3,
+  }
+});
 
-const generationConfig = {
-    temperature: 0.6,
-    maxOutputTokens: 4096,
-};
+// Todas as importações de 'fs', 'path', 'pdf-parse' são removidas.
 
-const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+export async function POST(req: Request) {
+  try {
+    const { message, cacheKey, action } = await req.json();
 
-// Interface para dados recebidos
-interface ChatRequestBody {
-    cnpj: string;
-    ano: number;
-    sequencial: number;
-    numeroControlePNCP?: string;
-    message?: string;
-}
+    if (!message || !cacheKey || !action) {
+      return NextResponse.json({ error: "Parâmetros inválidos" }, { status: 400 });
+    }
 
-// Interface para info do documento
-interface DocumentInfo {
-    url: string;
-    titulo: string;
-}
+    // 1. Encontrar a licitação (helper no fim do ficheiro)
+    const licitacao = await findLicitacaoByCacheKey(cacheKey);
+    if (!licitacao) {
+      return NextResponse.json({ status: "error", message: "Licitação não encontrada" }, { status: 404 });
+    }
+    const licitacaoPncpId = licitacao.numeroControlePNCP;
 
-// Cache simples em memória para URLs de documentos
-const documentCache = new Map<string, { docs: DocumentInfo[], timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
-// Função para baixar arquivo
-async function downloadFile(url: string, destination: string): Promise<void> {
-    try {
-        const response = await axios({
-            method: 'get',
-            url: url,
-            responseType: 'stream',
-            timeout: 60000, // Timeout de 60s
+    if (action === "checkCache" || action === "clearCache") {
+      // A "cache" agora é o nosso banco de dados vetorial.
+      // Verificamos se os documentos já foram processados (existem chunks).
+      const result = await db.select({ count: sql<number>`count(*)` })
+        .from(licitacaoDocumento)
+        .where(eq(licitacaoDocumento.licitacaoPncpId, licitacaoPncpId));
+      
+      const docCount = Number(result[0].count); // Converte o count para número
+
+      if (docCount > 0) {
+        return NextResponse.json({
+          status: "processed",
+          message: `Base de conhecimento pronta com ${docCount} documentos.`,
         });
-        const writer = require('fs').createWriteStream(destination);
-        response.data.pipe(writer);
-        return new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', (err: any) => reject(new Error(`Falha ao escrever arquivo: ${err.message}`)));
-            response.data.on('error', (err: any) => reject(new Error(`Erro no stream de download: ${err.message}`)));
+      } else {
+        return NextResponse.json({
+          status: "empty",
+          message: "Os documentos desta licitação ainda não foram processados.",
         });
-    } catch (error: any) {
-        console.error(`Erro ao iniciar download de ${url}:`, error.message);
-        const status = error.response?.status;
-        const statusText = error.response?.statusText;
-        throw new Error(`Falha ao baixar ${url}. ${status ? `Status: ${status} ${statusText}` : `Causa: ${error.message || 'Erro desconhecido'}`}`);
+      }
     }
+
+    if (action === "queryDocuments") {
+      // --- INÍCIO DA LÓGICA RAG (Tarefa 6 com Drizzle) ---
+
+      // 2. Gerar Embedding da Pergunta
+      console.log(`[Chat RAG] Gerando embedding para a pergunta: ${message}`);
+      const questionEmbedding = await generateQueryEmbedding(message);
+      
+      // Converte o array para o formato string que o 'sql' helper espera
+      const vectorString = `[${questionEmbedding.join(',')}]`;
+
+      // 3. Buscar Contexto (Retrieval) no pg-vector
+      // Drizzle usa o helper `sql` para consultas customizadas como a busca vetorial
+      console.log(`[Chat RAG] Buscando chunks relevantes para: ${licitacaoPncpId}`);
+      
+      // Esta é a consulta de similaridade de cosseno (<=>)
+      const contextChunks = await db.select({
+          texto: licitacaoDocumento.textoChunk,
+        })
+        .from(licitacaoDocumento)
+        .where(eq(licitacaoDocumento.licitacaoPncpId, licitacaoPncpId))
+        .orderBy(sql`${licitacaoDocumento.embedding} <=> ${vectorString}::vector`) // Ordena pelo mais similar
+        .limit(5); // Pega os 5 chunks mais relevantes
+
+      if (!contextChunks || contextChunks.length === 0) {
+        console.log(`[Chat RAG] Nenhum chunk encontrado.`);
+        return NextResponse.json({
+          reply: "Não encontrei informações sobre isso nos documentos processados desta licitação.",
+        });
+      }
+
+      console.log(`[Chat RAG] ${contextChunks.length} chunks encontrados.`);
+
+      // 4. Injetar Contexto (Augmented)
+      const context = contextChunks
+        .map((chunk) => chunk.texto)
+        .join("\n---\n");
+
+      // 5. Gerar Resposta (Generation)
+      const systemPrompt = `
+        Você é um assistente especialista em licitações.
+        Responda à PERGUNTA DO USUÁRIO usando APENAS o CONTEXTO fornecido abaixo, que foi extraído dos documentos oficiais da licitação.
+        Se a resposta não estiver no contexto, diga "A informação solicitada não foi encontrada nos documentos da licitação."
+        Seja direto e conciso.
+
+        --- CONTEXTO ---
+        ${context}
+        --- FIM DO CONTEXTO ---
+
+        PERGUNTA DO USUÁRIO: ${message}
+      `;
+
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+      });
+
+      const reply = result.response.text();
+      return NextResponse.json({ reply });
+      // --- FIM DA LÓGICA RAG ---
+    }
+
+    return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
+
+  } catch (error) {
+    console.error("Erro na API licitacao-chat:", error);
+    return NextResponse.json(
+      {
+        reply: "Desculpe, ocorreu um erro interno ao processar sua solicitação.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
-// Função para extrair texto do PDF usando pdf-parse
-async function extractTextFromPdf(filePath: string): Promise<string> {
-    try {
-        const dataBuffer = await fs.readFile(filePath);
-        if (dataBuffer.length === 0) {
-            console.warn(`Arquivo PDF vazio: ${filePath}`);
-            return `[PDF VAZIO: ${path.basename(filePath)}]`;
-        }
-        // Usa a importação 'pdf' corrigida
-        const data = await pdf(dataBuffer); 
-        const MAX_TEXT_LENGTH = 20000; // Limite (ajuste conforme necessário)
-        const text = data.text || '';
-        return text.substring(0, MAX_TEXT_LENGTH) + (text.length > MAX_TEXT_LENGTH ? '\n... [CONTEÚDO TRUNCADO]' : '');
-    } catch (error: any) {
-        console.error(`Erro ao extrair texto do PDF ${filePath}:`, error.message);
-        if (error.message && (error.message.includes('Invalid PDF structure') || error.message.includes('Header not found'))) {
-             return `[Erro: PDF inválido ou corrompido - ${path.basename(filePath)}]`;
-        }
-        return `[Erro ao processar PDF: ${path.basename(filePath)}]`;
+/**
+ * Helper refatorado para Drizzle
+ * Encontra a licitação usando o cacheKey do front-end.
+ * cacheKey = `pncp:${cnpj}:${ano}:${sequencial}`
+ */
+async function findLicitacaoByCacheKey(cacheKey: string) {
+  try {
+    const parts = cacheKey.split(":");
+    if (parts.length !== 4 || parts[0] !== 'pncp') {
+      throw new Error("Formato de cacheKey inválido.");
     }
-}
+    
+    const [, cnpj, ano, sequencial] = parts;
+    
+    // Constrói a consulta com Drizzle
+    const result = await db.select()
+      .from(pncpLicitacao)
+      .where(
+        and(
+          eq(pncpLicitacao.cnpjOrgao, cnpj),
+          eq(pncpLicitacao.anoCompra, parseInt(ano)),
+          eq(pncpLicitacao.sequencialCompra, parseInt(sequencial))
+        )
+      )
+      .limit(1);
+    
+    return result[0] || null;
 
-// Função principal da API Route
-export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-        return NextResponse.json({ message: 'Acesso não autorizado.' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const action = searchParams.get('action'); // action=getDocuments ou action=queryDocuments
-
-    let tempFilePaths: string[] = []; // Rastreia arquivos para limpeza
-    let tempDir: string | null = null; // Rastreia diretório temporário
-
-    try {
-        const body: ChatRequestBody = await request.json();
-        const { cnpj, ano, sequencial, message } = body;
-
-        if (!cnpj || typeof ano !== 'number' || typeof sequencial !== 'number') {
-             return NextResponse.json({ message: 'CNPJ (string), Ano (number) e Sequencial (number) são obrigatórios.' }, { status: 400 });
-        }
-        if (!/^\d{14}$/.test(cnpj)) {
-             return NextResponse.json({ message: 'Formato de CNPJ inválido.' }, { status: 400 });
-        }
-
-        const cacheKey = `${cnpj}-${ano}-${sequencial}`;
-        const now = Date.now();
-        let cachedData = documentCache.get(cacheKey);
-
-        // --- Busca URLs dos documentos (com cache) ---
-        let documentUrls: DocumentInfo[] = [];
-        if (cachedData && (now - cachedData.timestamp < CACHE_TTL)) {
-            console.log(`[API licitacao-chat] Usando cache para documentos de ${cacheKey}`);
-            documentUrls = cachedData.docs;
-        } else {
-            console.log(`[API licitacao-chat] Buscando documentos no PNCP para ${cacheKey}...`);
-            try {
-                // Endpoint CORRETO para buscar arquivos de uma COMPRA específica
-                const endpoint = `/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos`; //
-                console.log(`[API licitacao-chat] Chamando PNCP API: ${endpoint}`);
-                const docResponse = await pncpApi.get(endpoint); //
-
-                if (docResponse.data && Array.isArray(docResponse.data)) {
-                    documentUrls = docResponse.data
-                        .filter((doc: any) => doc.url && typeof doc.url === 'string' && doc.url.toLowerCase().endsWith('.pdf'))
-                        .map((doc: any) => ({
-                             url: doc.url,
-                             titulo: doc.titulo || `Documento_${doc.id || Math.random().toString(36).substring(7)}`
-                         }));
-                    console.log(`[API licitacao-chat] Encontrados ${documentUrls.length} PDFs para ${cacheKey}.`);
-                    documentCache.set(cacheKey, { docs: documentUrls, timestamp: now });
-                } else {
-                    console.log(`[API licitacao-chat] Nenhum documento encontrado ou formato inesperado para ${cacheKey}. Resposta PNCP:`, docResponse.data);
-                    documentUrls = [];
-                    documentCache.set(cacheKey, { docs: [], timestamp: now });
-                }
-            } catch (error: any) {
-                documentCache.delete(cacheKey);
-                if (axios.isAxiosError(error) && error.response?.status === 404) {
-                    console.warn(`[API licitacao-chat] PNCP API retornou 404 para arquivos de ${cacheKey}. Nenhum documento encontrado.`);
-                     documentUrls = [];
-                     documentCache.set(cacheKey, { docs: [], timestamp: now });
-                } else {
-                    console.error("Erro ao buscar documentos no PNCP:", error.message);
-                    if (action === 'getDocuments') {
-                        return NextResponse.json({ message: `Erro ao buscar documentos da licitação: ${error.message}` }, { status: 502 });
-                    }
-                    console.warn("[API licitacao-chat] Continuando sem documentos devido a erro na busca PNCP.");
-                    documentUrls = [];
-                }
-            }
-        }
-
-        // --- Ação: getDocuments ---
-        if (action === 'getDocuments') {
-             console.log(`[API licitacao-chat] Retornando ${documentUrls.length} documentos encontrados para ${cacheKey}.`);
-             return NextResponse.json({ documents: documentUrls });
-        }
-
-        // --- Ação: queryDocuments ---
-        if (action === 'queryDocuments') {
-            if (!message) {
-                 return NextResponse.json({ message: 'A mensagem do utilizador é obrigatória para queryDocuments.' }, { status: 400 });
-            }
-
-            if (documentUrls.length === 0) {
-                 console.log(`[API licitacao-chat] Sem documentos para analisar para ${cacheKey}.`);
-                 return NextResponse.json({ reply: "Não há documentos PDF associados a esta licitação ou não foi possível buscá-los." });
-            }
-
-            // 1. Baixar PDFs temporariamente
-            tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `pncp-${cacheKey}-`));
-            const downloadPromises: Promise<{path: string, title: string} | null>[] = [];
-
-            console.log(`[API licitacao-chat] Baixando ${documentUrls.length} PDFs para ${tempDir}...`);
-            for (const doc of documentUrls) {
-                 const safeTitle = (doc.titulo || `doc_${Date.now()}`).replace(/[^\w\-\.]/g, '_').substring(0, 100);
-                 const fileName = `${safeTitle}.pdf`;
-                const filePath = path.join(tempDir, fileName);
-
-                downloadPromises.push(
-                    downloadFile(doc.url, filePath)
-                        .then(() => {
-                            tempFilePaths.push(filePath);
-                            console.log(` - Baixado: ${doc.titulo}`);
-                            return { path: filePath, title: doc.titulo };
-                        })
-                        .catch(downloadError => {
-                            console.warn(`Falha ao baixar ${doc.titulo}. Pulando... Causa: ${downloadError.message}`);
-                            return null;
-                        })
-                );
-            }
-
-            const downloadedFiles = (await Promise.all(downloadPromises)).filter(f => f !== null) as {path: string, title: string}[];
-
-            if (downloadedFiles.length === 0) {
-                 console.warn(`[API licitacao-chat] Falha ao baixar todos os ${documentUrls.length} PDFs.`);
-                 return NextResponse.json({ reply: "Não consegui baixar ou processar nenhum documento PDF para analisar." });
-            }
-
-            // 2. Extrair texto e preparar partes para Gemini
-            console.log(`[API licitacao-chat] Extraindo texto de ${downloadedFiles.length} PDFs...`);
-            const parts: Part[] = [];
-            let totalChars = 0;
-            const MAX_TOTAL_CHARS = 800000;
-
-            parts.push({text: `Contexto: Análise de documentos da licitação ${body.numeroControlePNCP || cacheKey}. Documentos disponíveis:\n${downloadedFiles.map(f => `- ${f.title}`).join('\n')}\n---\n`});
-
-            for (const fileInfo of downloadedFiles) {
-                 console.log(`   - Processando: ${fileInfo.title}`);
-                 const textContent = await extractTextFromPdf(fileInfo.path);
-                 if (textContent.length > 0 && !textContent.startsWith('[Erro:') && totalChars < MAX_TOTAL_CHARS) {
-                    parts.push({ text: `--- INÍCIO DOCUMENTO: ${fileInfo.title} ---` });
-                    parts.push({ text: textContent });
-                    parts.push({ text: `--- FIM DOCUMENTO: ${fileInfo.title} ---` });
-                    totalChars += textContent.length;
-                 } else if (textContent.startsWith('[Erro:')) {
-                     parts.push({ text: textContent });
-                 } else if (totalChars >= MAX_TOTAL_CHARS) {
-                     console.warn(`[API licitacao-chat] Limite de caracteres atingido (${MAX_TOTAL_CHARS}). Ignorando restante.`);
-                     parts.push({text: "\n[AVISO: O CONTEÚDO DE ALGUNS DOCUMENTOS PODE TER SIDO TRUNCADO DEVIDO AO TAMANHO]"})
-                     break;
-                 } else {
-                     console.log(`   - Documento vazio ou erro não especificado: ${fileInfo.title}`);
-                 }
-            }
-
-            if (parts.length <= 1) {
-                 console.warn("[API licitacao-chat] Nenhum conteúdo útil extraído dos PDFs.");
-                 return NextResponse.json({ reply: "Não foi possível extrair conteúdo útil dos documentos PDF." });
-            }
-
-             parts.push({ text: `\n\nCom base APENAS nos documentos fornecidos acima (incluindo possíveis erros de processamento indicados), responda à seguinte pergunta: ${message}` });
-
-             console.log(`[API licitacao-chat] Enviando ${parts.length} partes (~${totalChars} caracteres) para o Gemini...`);
-
-
-            // 3. Chamar Gemini com o conteúdo extraído
-            const result = await model.generateContent({
-                 contents: [{ role: "user", parts }],
-                 generationConfig,
-                 safetySettings,
-             });
-
-            const response = result.response;
-             if (response.promptFeedback?.blockReason) {
-                 console.warn(`[API licitacao-chat] Resposta bloqueada por: ${response.promptFeedback.blockReason}`);
-                 return NextResponse.json({ reply: `Desculpe, a resposta foi bloqueada por motivos de segurança (${response.promptFeedback.blockReason}). Tente reformular a pergunta.` });
-             }
-             if (!response.candidates || response.candidates.length === 0 || !response.candidates[0].content) {
-                 console.warn("[API licitacao-chat] Gemini não retornou candidatos ou conteúdo.");
-                 return NextResponse.json({ reply: "Desculpe, não consegui gerar uma resposta neste momento." });
-             }
-
-            const replyText = response.text();
-            console.log("[API licitacao-chat] Resposta recebida do Gemini.");
-            return NextResponse.json({ reply: replyText });
-
-        } else {
-             return NextResponse.json({ message: 'Ação inválida solicitada. Use action=getDocuments ou action=queryDocuments.' }, { status: 400 });
-        }
-
-    } catch (error) {
-        console.error("[API licitacao-chat] Erro:", error);
-        const message = error instanceof Error ? error.message : "Erro interno do servidor.";
-        return NextResponse.json({ message }, { status: 500 });
-    } finally {
-        // 4. Limpeza
-        if (tempFilePaths.length > 0 && tempDir) {
-            console.log(`[API licitacao-chat] Limpando ${tempFilePaths.length} arquivos temporários de ${tempDir}...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-            for (const filePath of tempFilePaths) {
-                try {
-                    await fs.unlink(filePath);
-                } catch (unlinkError: any) {
-                    console.error(`Erro ao limpar arquivo ${filePath}:`, unlinkError.message);
-                }
-            }
-            try {
-                await fs.rmdir(tempDir);
-                console.log(`[API licitacao-chat] Diretório temporário ${tempDir} removido.`);
-            } catch (rmdirError: any) {
-                 console.warn(`Erro ao limpar diretório temporário ${tempDir}:`, rmdirError.message);
-            }
-        } else if (tempDir) {
-             try {
-                 await fs.rmdir(tempDir);
-                 console.log(`[API licitacao-chat] Diretório temporário vazio ${tempDir} removido.`);
-             } catch (rmdirError: any) {
-                 console.warn(`Erro ao limpar diretório temporário vazio ${tempDir}:`, rmdirError.message);
-             }
-        }
-    }
+  } catch (error) {
+    console.error("Erro ao parsear cacheKey:", error);
+    return null;
+  }
 }

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "user_licitacao_uniq_idx" ON "RelevanciaFeedback" USING btree ("userId","licitacaoPncpId");

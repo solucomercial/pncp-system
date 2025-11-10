@@ -1,4 +1,3 @@
-// Arquivo: src/lib/db/schema.ts
 import {
   timestamp,
   pgTable,
@@ -9,6 +8,7 @@ import {
   decimal,
   customType,
   uuid,
+  uniqueIndex, 
 } from "drizzle-orm/pg-core";
 import { sql } from 'drizzle-orm';
 
@@ -19,7 +19,6 @@ const vector = customType<{ data: number[] }>({
   toDriver(value: number[]): string {
     return JSON.stringify(value);
   },
-
   fromDriver(value: unknown): number[] {
     if (typeof value === 'string') {
       try {
@@ -30,13 +29,10 @@ const vector = customType<{ data: number[] }>({
       }
     }
     if (Array.isArray(value)) {
-
       return value;
     }
-
     return [];
   },
-
 });
 
 export const users = pgTable("user", {
@@ -55,7 +51,6 @@ export const accounts = pgTable(
     userId: uuid("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("providerAccountId").notNull(),
@@ -94,8 +89,6 @@ export const verificationTokens = pgTable(
   })
 );
 
-// --- TABELAS DA APLICAÇÃO (O Nosso Plano de Ação) ---
-
 export const pncpLicitacao = pgTable("PncpLicitacao", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(), 
   numeroControlePNCP: text("numeroControlePNCP").notNull().unique(),
@@ -133,7 +126,7 @@ export const pncpLicitacao = pgTable("PncpLicitacao", {
 export const syncLog = pgTable("SyncLog", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   date: timestamp("date", { mode: "date" }).notNull().unique(),
-  status: text("status").notNull(), // "success", "failed", "running"
+  status: text("status").notNull(),
   startTime: timestamp("startTime", { mode: "date" }).notNull(),
   endTime: timestamp("endTime", { mode: "date" }),
   recordsFetched: integer("recordsFetched").default(0),
@@ -154,10 +147,14 @@ export const relevanciaFeedback = pgTable("RelevanciaFeedback", {
   id: uuid("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  voto: integer("voto").notNull(), // 1 para Like, -1 para Dislike
+  voto: integer("voto").notNull(),
   userId: uuid("userId")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   licitacaoPncpId: text("licitacaoPncpId").notNull().references(() => pncpLicitacao.numeroControlePNCP, { onDelete: "cascade" }),
   createdAt: timestamp("createdAt", { mode: "date" }).defaultNow(),
+}, (table) => {
+  return {
+    userLicitacaoUniq: uniqueIndex("user_licitacao_uniq_idx").on(table.userId, table.licitacaoPncpId),
+  };
 });

@@ -1,11 +1,6 @@
-// Arquivo: src/lib/syncService.ts (Refatorado para Drizzle)
-
-// --- NOVAS IMPORTAÇÕES ---
 import { db } from "@/lib/db";
 import { pncpLicitacao, syncLog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-// --- FIM NOVAS IMPORTAÇÕES ---
-
 import { pncp } from "./comprasApi";
 import { analyzeLicitacao } from "./analyzeBids";
 

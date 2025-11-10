@@ -1,0 +1,702 @@
+{
+  "id": "948447ad-9ed8-4082-8409-1cea409fc8a0",
+  "prevId": "83524125-8707-490f-a808-1a0bb7026c41",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.account": {
+      "name": "account",
+      "schema": "",
+      "columns": {
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerAccountId": {
+          "name": "providerAccountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_type": {
+          "name": "token_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_state": {
+          "name": "session_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "account_userId_user_id_fk": {
+          "name": "account_userId_user_id_fk",
+          "tableFrom": "account",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "account_provider_providerAccountId_pk": {
+          "name": "account_provider_providerAccountId_pk",
+          "columns": [
+            "provider",
+            "providerAccountId"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.LicitacaoDocumento": {
+      "name": "LicitacaoDocumento",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "licitacaoPncpId": {
+          "name": "licitacaoPncpId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nomeArquivo": {
+          "name": "nomeArquivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "textoChunk": {
+          "name": "textoChunk",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(768)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "LicitacaoDocumento_licitacaoPncpId_PncpLicitacao_numeroControlePNCP_fk": {
+          "name": "LicitacaoDocumento_licitacaoPncpId_PncpLicitacao_numeroControlePNCP_fk",
+          "tableFrom": "LicitacaoDocumento",
+          "tableTo": "PncpLicitacao",
+          "columnsFrom": [
+            "licitacaoPncpId"
+          ],
+          "columnsTo": [
+            "numeroControlePNCP"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.PncpLicitacao": {
+      "name": "PncpLicitacao",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "PncpLicitacao_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "numeroControlePNCP": {
+          "name": "numeroControlePNCP",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnpjOrgao": {
+          "name": "cnpjOrgao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "orgao": {
+          "name": "orgao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anoCompra": {
+          "name": "anoCompra",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequencialCompra": {
+          "name": "sequencialCompra",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modalidade": {
+          "name": "modalidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numeroProcesso": {
+          "name": "numeroProcesso",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "objetoCompra": {
+          "name": "objetoCompra",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valorEstimado": {
+          "name": "valorEstimado",
+          "type": "numeric(19, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dataPublicacaoPNCP": {
+          "name": "dataPublicacaoPNCP",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dataAtualizacao": {
+          "name": "dataAtualizacao",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "situacao": {
+          "name": "situacao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "linkSistemaOrigem": {
+          "name": "linkSistemaOrigem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "linkPNCP": {
+          "name": "linkPNCP",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iaResumo": {
+          "name": "iaResumo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "iaPalavrasChave": {
+          "name": "iaPalavrasChave",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unidadeOrgao": {
+          "name": "unidadeOrgao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "municipio": {
+          "name": "municipio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uf": {
+          "name": "uf",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modoDisputa": {
+          "name": "modoDisputa",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criterioJulgamento": {
+          "name": "criterioJulgamento",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "informacaoComplementar": {
+          "name": "informacaoComplementar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aceitaJustificativa": {
+          "name": "aceitaJustificativa",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "niSolicitante": {
+          "name": "niSolicitante",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dataAutorizacao": {
+          "name": "dataAutorizacao",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "justificativaPresencial": {
+          "name": "justificativaPresencial",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grauRelevanciaIA": {
+          "name": "grauRelevanciaIA",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "justificativaRelevanciaIA": {
+          "name": "justificativaRelevanciaIA",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "PncpLicitacao_numeroControlePNCP_unique": {
+          "name": "PncpLicitacao_numeroControlePNCP_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "numeroControlePNCP"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.RelevanciaFeedback": {
+      "name": "RelevanciaFeedback",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "voto": {
+          "name": "voto",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "licitacaoPncpId": {
+          "name": "licitacaoPncpId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "user_licitacao_uniq_idx": {
+          "name": "user_licitacao_uniq_idx",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "licitacaoPncpId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "RelevanciaFeedback_userId_user_id_fk": {
+          "name": "RelevanciaFeedback_userId_user_id_fk",
+          "tableFrom": "RelevanciaFeedback",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "RelevanciaFeedback_licitacaoPncpId_PncpLicitacao_numeroControlePNCP_fk": {
+          "name": "RelevanciaFeedback_licitacaoPncpId_PncpLicitacao_numeroControlePNCP_fk",
+          "tableFrom": "RelevanciaFeedback",
+          "tableTo": "PncpLicitacao",
+          "columnsFrom": [
+            "licitacaoPncpId"
+          ],
+          "columnsTo": [
+            "numeroControlePNCP"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "sessionToken": {
+          "name": "sessionToken",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "session_userId_user_id_fk": {
+          "name": "session_userId_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "user",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.SyncLog": {
+      "name": "SyncLog",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "byDefault",
+            "name": "SyncLog_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "date": {
+          "name": "date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "startTime": {
+          "name": "startTime",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endTime": {
+          "name": "endTime",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recordsFetched": {
+          "name": "recordsFetched",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "errorMessage": {
+          "name": "errorMessage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "SyncLog_date_unique": {
+          "name": "SyncLog_date_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "date"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user": {
+      "name": "user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emailVerified": {
+          "name": "emailVerified",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_email_unique": {
+          "name": "user_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.verificationToken": {
+      "name": "verificationToken",
+      "schema": "",
+      "columns": {
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires": {
+          "name": "expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "verificationToken_identifier_token_pk": {
+          "name": "verificationToken_identifier_token_pk",
+          "columns": [
+            "identifier",
+            "token"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
