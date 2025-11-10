@@ -1,346 +1,253 @@
-import { PrismaClient } from "@prisma/client";
-import { subDays, format } from "date-fns";
-import { pncpApi } from "./comprasApi";
-import { PncpLicitacao } from "./types";
-import { z } from "zod";
-import { AxiosError } from "axios";
-// Importa a função de análise e o tipo de resultado
-import { analyzeBidsForStorage, LicitacaoAnalysisResult } from "./analyzeBids"; // <-- IMPORTADO
+// Arquivo: src/lib/syncService.ts (Refatorado para Drizzle)
 
-// Schema Zod para validação (mantido como antes)
-const PncpLicitacaoSchema = z.object({
-    numeroControlePNCP: z.string(),
-    numeroCompra: z.string(),
-    anoCompra: z.number(),
-    processo: z.string().nullable().optional(),
-    modalidadeNome: z.string(),
-    modoDisputaNome: z.string().nullable().optional(),
-    situacaoCompraNome: z.string(),
-    objetoCompra: z.string(),
-    informacaoComplementar: z.string().nullable().optional(),
-    valorTotalEstimado: z.number().nullable().optional(),
-    valorTotalHomologado: z.number().nullable().optional(),
-    dataAberturaProposta: z.string().nullable().optional(),
-    dataEncerramentoProposta: z.string().nullable().optional(),
-    dataPublicacaoPncp: z.string(),
-    dataInclusao: z.string(),
-    dataAtualizacao: z.string(),
-    dataAtualizacaoGlobal: z.string().nullable().optional(),
-    srp: z.boolean(),
-    amparoLegal: z.object({ nome: z.string() }).nullable().optional(),
-    sequencialCompra: z.number(),
-    tipoInstrumentoConvocatorioNome: z.string(),
-    justificativaPresencial: z.string().nullable().optional(),
-    linkSistemaOrigem: z.string().nullable().optional(),
-    linkProcessoEletronico: z.string().nullable().optional(),
-    orgaoEntidade: z.object({
-        cnpj: z.string(),
-        razaoSocial: z.string(),
-    }),
-    unidadeOrgao: z.object({
-        codigoUnidade: z.string(),
-        nomeUnidade: z.string(),
-        municipioNome: z.string(),
-        ufSigla: z.string(),
-    }),
-});
+// --- NOVAS IMPORTAÇÕES ---
+import { db } from "@/lib/db";
+import { pncpLicitacao, syncLog } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+// --- FIM NOVAS IMPORTAÇÕES ---
 
-const prisma = new PrismaClient();
-const ALL_MODALITY_CODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+import { pncp } from "./comprasApi";
+import { analyzeLicitacao } from "./analyzeBids";
 
-// Ajusta o timeout padrão da API PNCP se necessário
-pncpApi.defaults.timeout = 90000; // 90 segundos
+// Define um tipo para o objeto que vem da API, antes de ir para o DB
+// Usamos o tipo 'Insert' do Drizzle, mas omitimos 'id' (autoincrement)
+type NovaLicitacao = Omit<typeof pncpLicitacao.$inferInsert, 'id' | 'createdAt' | 'updatedAt'>;
+// Define o tipo completo da licitação analisada (com campos da IA)
+type LicitacaoAnalisada = typeof pncpLicitacao.$inferInsert;
 
-/**
- * Mapeia os dados da licitação (API PNCP) e opcionalmente da análise IA
- * para o formato esperado pelo Prisma.
- * @param licitacao - Dados da licitação vindos da API PNCP.
- * @param analysis - Resultado opcional da análise da IA para esta licitação.
- * @returns Objeto formatado para inserção/atualização no Prisma.
- */
-function mapLicitacaoToPrisma(licitacao: PncpLicitacao, analysis?: LicitacaoAnalysisResult) {
-    // Definindo um tipo para a licitação com possíveis campos extras
-    type LicitacaoComExtras = PncpLicitacao & { [key: string]: unknown };
-    const licitacaoComExtras = licitacao as LicitacaoComExtras;
 
-    return {
-        numeroControlePNCP: licitacao.numeroControlePNCP,
-        numeroCompra: licitacao.numeroCompra,
-        anoCompra: licitacao.anoCompra,
-        processo: licitacao.processo,
-        modalidadeNome: licitacao.modalidadeNome,
-        modoDisputaNome: licitacao.modoDisputaNome,
-        situacaoCompraNome: licitacao.situacaoCompraNome,
-        objetoCompra: licitacao.objetoCompra,
-        informacaoComplementar: licitacao.informacaoComplementar,
-        valorTotalEstimado: licitacao.valorTotalEstimado,
-        valorTotalHomologado: licitacao.valorTotalHomologado,
-        dataAberturaProposta: licitacao.dataAberturaProposta ? new Date(licitacao.dataAberturaProposta) : null,
-        dataEncerramentoProposta: licitacao.dataEncerramentoProposta ? new Date(licitacao.dataEncerramentoProposta) : null,
-        dataPublicacaoPncp: new Date(licitacao.dataPublicacaoPncp),
-        dataInclusao: new Date(licitacao.dataInclusao),
-        dataAtualizacao: new Date(licitacao.dataAtualizacao),
-        cnpjOrgaoEntidade: licitacao.orgaoEntidade.cnpj,
-        razaoSocialOrgaoEntidade: licitacao.orgaoEntidade.razaoSocial,
-        codigoUnidadeOrgao: licitacao.unidadeOrgao.codigoUnidade,
-        nomeUnidadeOrgao: licitacao.unidadeOrgao.nomeUnidade,
-        municipioNomeUnidadeOrgao: licitacao.unidadeOrgao.municipioNome,
-        ufSiglaUnidadeOrgao: licitacao.unidadeOrgao.ufSigla,
-        linkSistemaOrigem: licitacao.linkSistemaOrigem,
-        srp: licitacao.srp,
-        amparoLegalNome: licitacao.amparoLegal?.nome,
-        sequencialCompra: licitacao.sequencialCompra,
-        tipoInstrumentoConvocatorioNome: licitacao.tipoInstrumentoConvocatorioNome,
-        justificativaPresencial: licitacao.justificativaPresencial,
-        linkProcessoEletronico: typeof licitacaoComExtras.linkProcessoEletronico === 'string' ? licitacaoComExtras.linkProcessoEletronico : null,
-        dataAtualizacaoGlobal: licitacaoComExtras.dataAtualizacaoGlobal ? new Date(licitacaoComExtras.dataAtualizacaoGlobal as string) : null,
-        // --- Adiciona os campos da IA ---
-        relevanciaIA: analysis?.relevancia ?? null, // Usa o resultado da análise se disponível, senão null
-        justificativaIA: analysis?.justificativa ?? null, // Usa o resultado da análise se disponível, senão null
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 5000;
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function fetchLicitacoesFromPNCP(
+  date: string,
+): Promise<NovaLicitacao[]> {
+  let pagina = 1;
+  const todasLicitacoes: NovaLicitacao[] = [];
+  let licitacoesDaPagina;
+
+  console.log(
+    `[SyncService] Iniciando busca no PNCP para data: ${date} (Página ${pagina})`,
+  );
+
+  do {
+    let retries = 0;
+    let success = false;
+    licitacoesDaPagina = null;
+
+    while (retries < MAX_RETRIES && !success) {
+      try {
+        const response = await pncp.getLicitacoes(date, pagina);
+        licitacoesDaPagina = response.data;
+        success = true;
+      } catch (error) {
+        retries++;
+        console.error(
+          `[SyncService] Erro ao buscar página ${pagina} (Tentativa ${retries}/${MAX_RETRIES}):`,
+          error,
+        );
+        if (retries < MAX_RETRIES) {
+          await delay(RETRY_DELAY);
+        } else {
+          console.error(
+            `[SyncService] Falha permanente ao buscar página ${pagina} após ${MAX_RETRIES} tentativas.`,
+          );
+          throw error;
+        }
+      }
+    }
+
+    if (licitacoesDaPagina && licitacoesDaPagina.length > 0) {
+      console.log(
+        `[SyncService] Página ${pagina} processada, ${licitacoesDaPagina.length} licitações encontradas.`,
+      );
+      todasLicitacoes.push(
+        ...licitacoesDaPagina.map(
+          (item: any): NovaLicitacao => ({
+            // Mapeamento dos dados da API para o nosso schema Drizzle
+            numeroControlePNCP: item.numeroControlePNCP,
+            cnpjOrgao: item.orgao.cnpj,
+            orgao: item.orgao.nome,
+            unidadeOrgao: item.unidadeOrgao.nome,
+            municipio: item.municipio.nome,
+            uf: item.uf.sigla,
+            anoCompra: item.anoCompra,
+            sequencialCompra: item.sequencialCompra,
+            modalidade: item.modalidade.nome,
+            numeroProcesso: item.numeroProcesso,
+            objetoCompra: item.objetoCompra,
+            // O Drizzle (com 'pg') prefere strings para 'decimal'
+            valorEstimado: item.valorEstimado ? String(item.valorEstimado) : null,
+            dataPublicacaoPNCP: new Date(item.dataPublicacaoPNCP),
+            dataAtualizacao: new Date(item.dataAtualizacao),
+            situacao: item.situacao.nome,
+            linkSistemaOrigem: item.linkSistemaOrigem,
+            linkPNCP: item.linkPNCP,
+            iaResumo: null,
+            iaPalavrasChave: [],
+            modoDisputa: item.modoDisputa ? item.modoDisputa.nome : null,
+            criterioJulgamento: item.criterioJulgamento
+              ? item.criterioJulgamento.nome
+              : null,
+            informacaoComplementar: item.informacaoComplementar,
+            aceitaJustificativa: item.aceitaJustificativa,
+            niSolicitante: item.niSolicitante,
+            dataAutorizacao: item.dataAutorizacao
+              ? new Date(item.dataAutorizacao)
+              : null,
+            justificativaPresencial: item.justificativaPresencial,
+            grauRelevanciaIA: null,
+            justificativaRelevanciaIA: null,
+          }),
+        ),
+      );
+      pagina++;
+    }
+  } while (licitacoesDaPagina && licitacoesDaPagina.length > 0);
+
+  console.log(
+    `[SyncService] Busca finalizada para ${date}. Total de ${todasLicitacoes.length} licitações.`,
+  );
+  return todasLicitacoes;
+}
+
+async function analyzeBidsForStorage(licitacoes: NovaLicitacao[]) {
+  const licitacoesCompletas: LicitacaoAnalisada[] = [];
+  
+  for (const licitacao of licitacoes) {
+    const analysis = await analyzeLicitacao(licitacao);
+    
+    // Prepara o objeto para o 'insert' (upsert)
+    const licitacaoAnalisada: LicitacaoAnalisada = {
+      ...licitacao,
+      // Garante que os campos da IA sejam adicionados
+      iaResumo: analysis?.resumo || "N/A",
+      iaPalavrasChave: analysis?.palavrasChave || [],
+      grauRelevanciaIA: analysis?.grauRelevanciaIA || "Média",
+      justificativaRelevanciaIA: analysis?.justificativaRelevanciaIA || "N/A",
+      // Define a data de atualização para o upsert
+      updatedAt: new Date(),
     };
+    
+    licitacoesCompletas.push(licitacaoAnalisada);
+  }
+  return licitacoesCompletas;
 }
 
-/**
- * Busca licitações publicadas numa data específica na API do PNCP,
- * iterando por todas as modalidades e páginas.
- * @param data - A data para a qual buscar as licitações.
- * @returns Um array com as licitações encontradas e validadas.
- */
-async function fetchLicitacoesFromPNCP(data: Date): Promise<PncpLicitacao[]> {
-    console.log(`[SyncService] A procurar licitações para a data: ${format(data, "yyyy-MM-dd")}`);
-    const dataFormatada = format(data, "yyyyMMdd");
-    const todasLicitacoes: PncpLicitacao[] = [];
+async function upsertLicitacoes(licitacoes: LicitacaoAnalisada[]) {
+  if (licitacoes.length === 0) return 0;
 
-    for (const modalidade of ALL_MODALITY_CODES) {
-        let pagina = 1;
-        let totalPaginas = 1;
+  console.log(`[SyncService] Salvando ${licitacoes.length} licitações no banco...`);
 
-        while (pagina <= totalPaginas) {
-            let sucesso = false;
-            let tentativas = 0;
-            const maxTentativas = 4; // Número de retentativas em caso de erro da API
-
-            while (!sucesso && tentativas < maxTentativas) {
-                try {
-                    const params = {
-                        dataInicial: dataFormatada,
-                        dataFinal: dataFormatada,
-                        codigoModalidadeContratacao: modalidade,
-                        pagina: pagina,
-                        tamanhoPagina: 50, // Tamanho da página da API PNCP
-                    };
-
-                    const response = await pncpApi.get("/v1/contratacoes/publicacao", { params }); //
-
-                    if (response.data && response.data.data) {
-                        const rawData = response.data.data;
-                        // Valida os dados recebidos com o schema Zod (permite campos parciais)
-                        const validationResult = z.array(PncpLicitacaoSchema.partial()).safeParse(rawData);
-
-                        if (validationResult.success) {
-                            // Adiciona apenas os dados válidos ao array
-                            todasLicitacoes.push(...validationResult.data as PncpLicitacao[]);
-                        } else {
-                            console.warn(`[SyncService] DADOS INVÁLIDOS da API para Modalidade ${modalidade}, Página ${pagina}. Erros de validação:`, validationResult.error.flatten());
-                        }
-
-                        // Atualiza o total de páginas na primeira iteração
-                        if (pagina === 1) {
-                            totalPaginas = response.data.totalPaginas || 1;
-                        }
-                        console.log(`[SyncService] Modalidade ${modalidade}: Página ${pagina}/${totalPaginas} carregada.`);
-                    }
-                    sucesso = true; // Marca como sucesso se a requisição foi bem-sucedida
-
-                } catch (error) {
-                    tentativas++;
-                    const axiosError = error as AxiosError;
-                    console.error(`[SyncService] Erro ao buscar Modalidade ${modalidade}, Página ${pagina} (tentativa ${tentativas}/${maxTentativas}). Código: ${axiosError.code}`);
-                    if (tentativas >= maxTentativas) {
-                        console.error(`[SyncService] FALHA FINAL ao buscar Modalidade ${modalidade}, Página ${pagina}. A saltar para a próxima página.`);
-                        // Não marca sucesso, sai do loop de tentativas
-                    } else {
-                        // Espera exponencialmente antes de tentar novamente
-                        const tempoEspera = 5000 * tentativas;
-                        console.log(`[SyncService] A aguardar ${tempoEspera / 1000}s para tentar novamente...`);
-                        await new Promise(resolve => setTimeout(resolve, tempoEspera));
-                    }
-                }
-            } // Fim do loop de tentativas
-            pagina++;
-            await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa entre páginas
-        } // Fim do loop de páginas
-    } // Fim do loop de modalidades
-
-    console.log(`[SyncService] Total de ${todasLicitacoes.length} licitações válidas encontradas para ${format(data, "yyyy-MM-dd")}.`);
-    return todasLicitacoes;
-}
-
-/**
- * Insere ou atualiza (upsert) as licitações na base de dados,
- * incluindo os resultados da análise de IA.
- * @param licitacoes - Array de licitações procuradas da API.
- * @param analysisResults - Array correspondente com os resultados da análise IA.
- * @returns Contagem de registos criados e atualizados (atualmente simplificado).
- */
-async function upsertLicitacoes(
-    licitacoes: PncpLicitacao[],
-    analysisResults: LicitacaoAnalysisResult[] // <-- Recebe os resultados da análise
-) {
-    if (licitacoes.length === 0) {
-        console.log("[SyncService] Nenhuma licitação para guardar.");
-        return { created: 0, updated: 0 };
-    }
-
-    // Cria um mapa para acesso rápido aos resultados da análise por ID (numeroControlePNCP)
-    const analysisMap = new Map(analysisResults.map(a => [a.numeroControlePNCP, a]));
-
-    console.log(`[SyncService] A guardar/atualizar ${licitacoes.length} licitações (com análise IA) na base de dados...`);
-    let updatedCount = 0; // Usaremos para contar o total de operações bem-sucedidas
-
-    // Mapeia cada licitação para uma promessa de operação upsert
-    const transacoes = licitacoes.map(async (lic) => {
-        try {
-            // Obtém a análise correspondente do mapa
-            const analysis = analysisMap.get(lic.numeroControlePNCP);
-            // Mapeia os dados da licitação e da análise para o formato do Prisma
-            const data = mapLicitacaoToPrisma(lic, analysis); // <-- Passa a análise para o mapeamento
-            // Executa a operação upsert na base de dados
-            await prisma.licitacao.upsert({
-                where: { numeroControlePNCP: lic.numeroControlePNCP }, // Chave única para encontrar ou criar
-                update: data, // Dados para atualizar se encontrado
-                create: data, // Dados para criar se não encontrado
-            });
-        } catch (error) {
-            // Loga erro caso uma operação específica falhe, mas continua as outras
-            console.error(`[SyncService] Falha ao guardar licitação ${lic.numeroControlePNCP}. A saltar. Erro:`, error);
-        }
-    });
-
-    // Aguarda todas as operações upsert serem concluídas
-    await Promise.all(transacoes);
-    // Assume que todas as licitações foram processadas (simplificação)
-    updatedCount = licitacoes.length;
-
-    console.log("[SyncService] Dados guardados com sucesso.");
-    // Retorna a contagem (simplificada, created não é rastreado facilmente com upsert em lote)
-    return { created: 0, updated: updatedCount };
-}
-
-/**
- * Remove licitações antigas da base de dados (publicadas há mais de 90 dias).
- */
-async function cleanupOldLicitacoes() {
-    const dataLimite = subDays(new Date(), 90); // Define a data limite (90 dias atrás)
-    console.log(`[SyncService] A remover licitações publicadas antes de ${format(dataLimite, "yyyy-MM-dd")}`);
-
-    // Executa a exclusão em massa na base de dados
-    const result = await prisma.licitacao.deleteMany({
-        where: {
-            dataPublicacaoPncp: {
-                lt: dataLimite, // 'lt' significa 'less than' (menor que)
-            },
-        },
-    });
-
-    console.log(`[SyncService] ${result.count} licitações antigas removidas.`);
-}
-
-/**
- * Função principal que orquestra o processo de sincronização e análise.
- * Busca dados do PNCP, analisa com IA e guarda na base de dados.
- * @param isInitialLoad - Flag para indicar se é a carga inicial (busca 30 dias) ou diária (busca 1 dia).
- * @returns Objeto indicando sucesso ou falha da operação.
- */
-export async function runSync(isInitialLoad: boolean = false) {
-    console.log(`--- [SyncService] A INICIAR SINCRONIZAÇÃO (${isInitialLoad ? 'CARGA INICIAL' : 'DIÁRIA'}) ---`);
-    let totalCriado = 0; // Contadores (simplificados)
-    let totalAtualizado = 0;
-
-    // Função interna para processar uma data específica (busca + análise + guardar)
-    const processDate = async (targetDate: Date) => {
-        let licitacoesDoDia: PncpLicitacao[] = [];
-        let analysisDoDia: LicitacaoAnalysisResult[] = [];
-        try {
-            // 1. Busca licitações da API PNCP
-            licitacoesDoDia = await fetchLicitacoesFromPNCP(targetDate);
-
-            // Só prossegue para análise se houver licitações
-            if (licitacoesDoDia.length > 0) {
-                 // Prepara dados simplificados (ID e objeto) para a análise da IA
-                 const simplifiedBids = licitacoesDoDia.map(lic => ({
-                     numeroControlePNCP: lic.numeroControlePNCP,
-                     objetoCompra: lic.objetoCompra,
-                 }));
-
-                 // 2. Chama a análise da IA
-                 console.log(`[SyncService] A iniciar análise da IA para ${simplifiedBids.length} licitações de ${format(targetDate, 'dd/MM/yyyy')}...`);
-                 analysisDoDia = await analyzeBidsForStorage(simplifiedBids, (message) => console.log(`[SyncService IA] ${message}`)); // Passa callback para logs
-                 console.log(`[SyncService] Análise da IA concluída.`);
-            } else {
-                console.log(`[SyncService] Nenhuma licitação encontrada para ${format(targetDate, 'dd/MM/yyyy')}, a saltar análise IA.`);
-            }
-
-            // 3. Guarda na base de dados COM os resultados da análise
-            const { created, updated } = await upsertLicitacoes(licitacoesDoDia, analysisDoDia); // <-- Passa analysisDoDia
-            totalCriado += created; // Acumula contadores
-            totalAtualizado += updated;
-
-        } catch (error) {
-            console.error(`[SyncService] Erro crítico ao processar/analisar a data ${format(targetDate, 'dd/MM/yyyy')}.`, error);
-            // Decide se quer parar a sincronização ou continuar para o próximo dia
-            // Lançar o erro aqui pararia o processo, útil para a sincronização diária
-            if (!isInitialLoad) throw error; // Interrompe se for a sincronização diária
-        }
-    }; // Fim da função processDate
-
-    // Lógica para carga inicial (30 dias) ou diária (1 dia)
-    if (isInitialLoad) {
-        console.log("[SyncService] A executar carga inicial dos últimos 30 dias com análise IA.");
-        for (let i = 0; i < 30; i++) { // Loop pelos últimos 30 dias
-            const targetDate = subDays(new Date(), i);
-            console.log(`\n--- A processar dia ${i + 1}/30: ${format(targetDate, 'dd/MM/yyyy')} ---`);
-            try {
-                await processDate(targetDate); // Chama a função que processa e analisa
-            } catch (error) {
-                 // Na carga inicial, apenas loga o erro e continua para o próximo dia
-                 console.error(`[SyncService] Erro no dia ${format(targetDate, 'dd/MM/yyyy')} da carga inicial. A continuar...`)
-            }
-        }
-    } else {
-         console.log("[SyncService] A executar busca diária com análise IA.");
-        try {
-            const ontem = subDays(new Date(), 1); // Pega a data de ontem
-            await processDate(ontem); // Chama a função que processa e analisa
-        } catch (error) {
-            // Se processDate lançar erro na sincronização diária, loga e retorna falha
-            console.error("[SyncService] Erro crítico durante a busca/análise diária.", error);
-            await prisma.$disconnect(); // Garante desconexão em caso de erro
-            return { success: false, message: "Erro na sincronização/análise diária." };
-        }
-    }
-
-    // 4. Limpa dados antigos (após processar todas as datas)
+  // --- ATUALIZAÇÃO DRIZZLE (Upsert) ---
+  // O Drizzle usa onConflictDoUpdate para simular o 'upsert'
+  
+  for (const licitacao of licitacoes) {
     try {
-        await cleanupOldLicitacoes();
-    } catch (error) {
-        console.error("[SyncService] Erro durante a limpeza de dados antigos.", error);
-        // Geralmente não impede a conclusão da sincronização, apenas loga
-    }
-
-    // 5. Guarda log da sincronização na base de dados
-    try {
-        await prisma.syncLog.create({
-            data: {
-                createdCount: 0, // Simplificado
-                updatedCount: totalAtualizado,
-            }
+      await db.insert(pncpLicitacao)
+        .values(licitacao)
+        .onConflictDoUpdate({
+          // O 'target' é a coluna 'unique' que define o conflito
+          target: pncpLicitacao.numeroControlePNCP, 
+          // 'set' define quais colunas devem ser atualizadas
+          set: {
+            ...licitacao,
+            // Omite 'id' e 'numeroControlePNCP' do 'set'
+            id: undefined,
+            numeroControlePNCP: undefined,
+          }
         });
     } catch (error) {
-        console.error("[SyncService] Erro ao guardar log de sincronização.", error);
+      console.error(
+        `[SyncService] Erro ao salvar licitação ${licitacao.numeroControlePNCP}:`,
+        error,
+      );
+    }
+  }
+  // --- FIM DA ATUALIZAÇÃO ---
+  
+  return licitacoes.length;
+}
+
+export async function processDate(targetDate: string): Promise<number> {
+  let licitacoesDoDia: NovaLicitacao[] = [];
+  try {
+    // 1. Busca licitações da API PNCP
+    licitacoesDoDia = await fetchLicitacoesFromPNCP(targetDate);
+
+    if (licitacoesDoDia.length === 0) {
+      console.log(`[SyncService] Nenhuma licitação nova para ${targetDate}.`);
+      return 0;
     }
 
-    console.log("--- [SyncService] SINCRONIZAÇÃO E ANÁLISE CONCLUÍDAS ---");
-    await prisma.$disconnect(); // Desconecta da base de dados ao final
-    return { success: true, message: "Sincronização e análise concluídas." };
+    // 2. Chama a análise da IA (agora usando Drizzle internamente)
+    const licitacoesAnalisadas = await analyzeBidsForStorage(licitacoesDoDia);
+
+    // 3. Guarda licitações na base de dados (agora usando Drizzle)
+    const count = await upsertLicitacoes(licitacoesAnalisadas);
+    console.log(
+      `[SyncService] Sincronização de ${targetDate} concluída. ${count} registros salvos.`,
+    );
+    return count;
+  } catch (error) {
+    console.error(
+      `[SyncService] Erro fatal no processamento de ${targetDate}:`,
+      error,
+    );
+    throw error;
+  }
+}
+
+export async function runSync(daysAgo: number = 1) {
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() - daysAgo);
+  const dateString = targetDate.toISOString().split("T")[0];
+
+  console.log(`[SyncService] Iniciando runSync para data: ${dateString}`);
+  
+  // --- ATUALIZAÇÃO DRIZZLE (Log) ---
+  // O 'returning' é necessário para obter o ID do log inserido
+  const logEntries = await db.insert(syncLog)
+    .values({
+      date: new Date(dateString),
+      status: "running",
+      startTime: new Date(),
+    })
+    .returning({ id: syncLog.id });
+  
+  const log = logEntries[0];
+  // --- FIM DA ATUALIZAÇÃO ---
+
+  try {
+    const recordsFetched = await processDate(dateString);
+    
+    // --- ATUALIZAÇÃO DRIZZLE (Log Success) ---
+    await db.update(syncLog)
+      .set({
+        status: "success",
+        endTime: new Date(),
+        recordsFetched: recordsFetched,
+      })
+      .where(eq(syncLog.id, log.id));
+    // --- FIM DA ATUALIZAÇÃO ---
+    
+    console.log(`[SyncService] runSync para ${dateString} concluído com sucesso.`);
+  } catch (error: any) {
+    
+    // --- ATUALIZAÇÃO DRIZZLE (Log Failed) ---
+    await db.update(syncLog)
+      .set({
+        status: "failed",
+        endTime: new Date(),
+        errorMessage: error.message,
+      })
+      .where(eq(syncLog.id, log.id));
+    // --- FIM DA ATUALIZAÇÃO ---
+    
+    console.error(`[SyncService] runSync para ${dateString} falhou:`, error);
+  }
 }
