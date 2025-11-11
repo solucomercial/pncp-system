@@ -8,7 +8,7 @@ import {
 import { Badge } from "./ui/badge";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
-import { LicitacaoChatDialog } from "./LicitacaoChatDialog";
+import LicitacaoChatDialog from "./LicitacaoChatDialog";
 import { ThumbsUp, ThumbsDown, BrainCircuit } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";

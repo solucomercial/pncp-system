@@ -200,7 +200,7 @@ export default function Home() {
                           variant={
                             licitacao.grauRelevanciaIA === "Alta"
                               ? "destructive"
-                              : licitacao.graaRelevanciaIA === "Média"
+                              : licitacao.grauRelevanciaIA === "Média"
                               ? "default"
                               : "secondary"
                           }

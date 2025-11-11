@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+// Arquivo: next.config.ts
 
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const config = {
+  // Esta linha é essencial para ajudar o Next.js
+  // a processar o pacote 'pdfjs-dist'
+  transpilePackages: ['pdfjs-dist'],
 };
 
-export default nextConfig;
+export default config;
