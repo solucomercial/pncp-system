@@ -1,4 +1,3 @@
-// Arquivo: src/components/LicitacaoDetailDialog.tsx
 import {
   Dialog,
   DialogContent,
@@ -13,10 +12,10 @@ import { ThumbsUp, ThumbsDown, BrainCircuit } from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
-import { pncpLicitacao } from "@/lib/db/schema"; // Importa o TIPO
+import { pncpLicitacao } from "@/lib/db/schema";
 
 interface LicitacaoDetailDialogProps {
-  licitacao: typeof pncpLicitacao.$inferSelect; 
+  licitacao: typeof pncpLicitacao.$inferSelect;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -46,7 +45,6 @@ export default function LicitacaoDetailDialog({
   isOpen,
   onClose,
 }: LicitacaoDetailDialogProps) {
-  
   const [isVoting, setIsVoting] = useState(false);
 
   const handleVote = async (voto: 1 | -1) => {
@@ -57,7 +55,7 @@ export default function LicitacaoDetailDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           licitacaoPncpId: licitacao.numeroControlePNCP,
-          voto: voto,
+          voto,
         }),
       });
 
@@ -65,16 +63,15 @@ export default function LicitacaoDetailDialog({
         const errorData = await response.json();
         throw new Error(errorData.error || "Falha ao registrar voto.");
       }
-      
+
       toast.success("Obrigado pelo seu feedback!");
-      
     } catch (error: any) {
       console.error(error);
-      if (error.message === 'Não autorizado') {
-        toast.error("Você precisa estar logado para votar.");
-      } else {
-        toast.error("Erro ao enviar feedback.");
-      }
+      toast.error(
+        error.message === "Não autorizado"
+          ? "Você precisa estar logado para votar."
+          : "Erro ao enviar feedback."
+      );
     } finally {
       setIsVoting(false);
     }
@@ -84,8 +81,15 @@ export default function LicitacaoDetailDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent
+        className="
+          max-w-[95vw] md:max-w-4xl
+          h-[90vh]
+          flex flex-col
+          p-0
+        "
+      >
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle className="pr-10">
             Detalhes da Licitação
             <Badge variant="secondary" className="ml-2">
@@ -93,8 +97,18 @@ export default function LicitacaoDetailDialog({
             </Badge>
           </DialogTitle>
         </DialogHeader>
-        
-        <ScrollArea className="flex-grow pr-6">
+
+        {/* ÁREA ROLÁVEL */}
+        <ScrollArea
+          className="
+            flex-grow 
+            px-6 
+            pb-6 
+            pt-2
+            overflow-y-auto
+            scroll-smooth
+          "
+        >
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
@@ -121,46 +135,54 @@ export default function LicitacaoDetailDialog({
                 <div className="space-y-3 p-4 bg-secondary/50 rounded-lg">
                   <div className="flex items-center gap-2">
                     <BrainCircuit className="w-5 h-5 text-primary" />
-                    <h4 className="font-semibold text-lg">Análise de Relevância (IA)</h4>
+                    <h4 className="font-semibold text-lg">
+                      Análise de Relevância (IA)
+                    </h4>
                   </div>
-                  
-                  <Badge 
+
+                  <Badge
                     variant={
-                      licitacao.grauRelevanciaIA === "Alta" ? "destructive" :
-                      licitacao.grauRelevanciaIA === "Média" ? "default" :
-                      "secondary"
+                      licitacao.grauRelevanciaIA === "Alta"
+                        ? "destructive"
+                        : licitacao.grauRelevanciaIA === "Média"
+                        ? "default"
+                        : "secondary"
                     }
                     className="text-sm font-semibold"
                   >
                     Relevância {licitacao.grauRelevanciaIA}
                   </Badge>
-                  
+
                   {licitacao.justificativaRelevanciaIA && (
-                     <p className="text-sm text-muted-foreground italic">
+                    <p className="text-sm text-muted-foreground italic">
                       "{licitacao.justificativaRelevanciaIA}"
-                     </p>
+                    </p>
                   )}
 
-                  <div className="flex items-center gap-4 pt-2">
-                    <p className="text-sm font-medium">Esta análise foi útil?</p>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleVote(1)}
-                      disabled={isVoting}
-                      title="Análise útil"
-                    >
-                      <ThumbsUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => handleVote(-1)}
-                      disabled={isVoting}
-                      title="Análise não foi útil"
-                    >
-                      <ThumbsDown className="w-4 h-4" />
-                    </Button>
+                  <div className="flex items-center gap-4 pt-2 flex-wrap">
+                    <p className="text-sm font-medium">
+                      Esta análise foi útil?
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleVote(1)}
+                        disabled={isVoting}
+                        title="Análise útil"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleVote(-1)}
+                        disabled={isVoting}
+                        title="Análise não foi útil"
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </>
@@ -175,51 +197,57 @@ export default function LicitacaoDetailDialog({
               </p>
             </div>
 
-            {licitacao.iaResumo && licitacao.iaResumo !== "Análise de IA falhou." && (
-              <div>
-                <h4 className="font-semibold mb-1">Resumo (IA)</h4>
-                <p className="text-sm text-muted-foreground italic">
-                  {licitacao.iaResumo}
-                </p>
-              </div>
-            )}
-
-            {licitacao.iaPalavrasChave && licitacao.iaPalavrasChave.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">Palavras-chave (IA)</h4>
-                <div className="flex flex-wrap gap-2">
-                  {licitacao.iaPalavrasChave.map((keyword) => (
-                    <Badge key={keyword} variant="outline">
-                      {keyword}
-                    </Badge>
-                  ))}
+            {licitacao.iaResumo &&
+              licitacao.iaResumo !== "Análise de IA falhou." && (
+                <div>
+                  <h4 className="font-semibold mb-1">Resumo (IA)</h4>
+                  <p className="text-sm text-muted-foreground italic">
+                    {licitacao.iaResumo}
+                  </p>
                 </div>
-              </div>
-            )}
+              )}
+
+            {licitacao.iaPalavrasChave &&
+              licitacao.iaPalavrasChave.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Palavras-chave (IA)</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {licitacao.iaPalavrasChave.map((keyword) => (
+                      <Badge key={keyword} variant="outline">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             <Separator />
-            
-            <div className="grid grid-cols-2 gap-4 text-sm">
-               <div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
                 <span className="font-semibold">Unidade</span>
                 <p className="text-muted-foreground">{licitacao.unidadeOrgao}</p>
               </div>
-               <div>
+              <div>
                 <span className="font-semibold">Município/UF</span>
-                <p className="text-muted-foreground">{licitacao.municipio}/{licitacao.uf}</p>
+                <p className="text-muted-foreground">
+                  {licitacao.municipio}/{licitacao.uf}
+                </p>
               </div>
-               <div>
+              <div>
                 <span className="font-semibold">Situação</span>
                 <p className="text-muted-foreground">{licitacao.situacao}</p>
               </div>
-               <div>
+              <div>
                 <span className="font-semibold">Processo</span>
-                <p className="text-muted-foreground">{licitacao.numeroProcesso}</p>
+                <p className="text-muted-foreground">
+                  {licitacao.numeroProcesso}
+                </p>
               </div>
             </div>
 
-            <div className="flex gap-4 pt-2">
-               <Button variant="outline" asChild>
+            <div className="flex flex-wrap gap-4 pt-2">
+              <Button variant="outline" asChild>
                 <a
                   href={licitacao.linkPNCP ?? "#"}
                   target="_blank"
@@ -228,8 +256,8 @@ export default function LicitacaoDetailDialog({
                   Ver no PNCP
                 </a>
               </Button>
-               <Button variant="outline" asChild>
-                 <a
+              <Button variant="outline" asChild>
+                <a
                   href={licitacao.linkSistemaOrigem ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -240,8 +268,9 @@ export default function LicitacaoDetailDialog({
             </div>
           </div>
         </ScrollArea>
-        
-        <div className="flex-shrink-0 pt-4 border-t">
+
+        {/* Rodapé fixo */}
+        <div className="flex-shrink-0 p-4 border-t bg-background">
           <LicitacaoChatDialog
             cacheKey={`pncp:${licitacao.cnpjOrgao}:${licitacao.anoCompra}:${licitacao.sequencialCompra}`}
           />

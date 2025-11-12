@@ -60,6 +60,7 @@ export async function GET(request: Request) {
 
     // ... (lógica de condições de filtro - sem alteração)
     if (dataInicial) {
+      // Adicionada correção para datas (problema de fuso horário)
       conditions.push(gte(pncpLicitacao.dataPublicacaoPNCP, new Date(dataInicial.replace(/-/g, '\/'))));
     }
     if (dataFinal) {
@@ -113,6 +114,7 @@ export async function GET(request: Request) {
       END
     `;
 
+    // Mapeamento de 'sortBy' (vindo da tabela) para colunas do DB
     switch (sortBy) {
       case "objetoCompra":
         orderByClause = [direction(pncpLicitacao.objetoCompra)];
@@ -145,17 +147,17 @@ export async function GET(request: Request) {
       case "numeroProcesso":
         orderByClause = [direction(pncpLicitacao.numeroProcesso)];
         break;
-      // Fallback
+      
+      // Fallback (Filtro 'relevancia' ou 'data')
       case "relevancia":
+        orderByClause = [asc(relevancyOrder), desc(pncpLicitacao.dataPublicacaoPNCP)];
+        break;
       case "data":
+        orderByClause = [desc(pncpLicitacao.dataPublicacaoPNCP)];
+        break;
       default:
-        // Se `sortBy` for 'data' (do filtro antigo) ou não definido,
-        // usamos a ordenação padrão de relevância.
-        if (sortBy === 'data') {
-           orderByClause = [desc(pncpLicitacao.dataPublicacaoPNCP)];
-        } else {
-           orderByClause = [asc(relevancyOrder), desc(pncpLicitacao.dataPublicacaoPNCP)];
-        }
+         // Ordenação padrão (se nada for fornecido) é relevância
+        orderByClause = [asc(relevancyOrder), desc(pncpLicitacao.dataPublicacaoPNCP)];
     }
     // --- FIM DA ATUALIZAÇÃO ---
 
@@ -177,8 +179,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       licitacoes,
       total,
-      page: page,
-      pageSize: pageSize,
+      page: page, 
+      pageSize: pageSize, 
       pageCount: Math.ceil(total / pageSize)
     });
   } catch (error) {

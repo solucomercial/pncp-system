@@ -19,6 +19,7 @@ type Licitacao = typeof pncpLicitacao.$inferSelect
 // Funções de formatação
 const formatarData = (data: Date | string | null) => {
   if (!data) return "N/A"
+  // Corrigindo para lidar com datas que podem vir como string
   return new Date(data).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -51,6 +52,7 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
         }
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Selecionar todas"
+        className="translate-y-[2px]"
       />
     ),
     cell: ({ row }) => (
@@ -58,6 +60,7 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Selecionar linha"
+        className="translate-y-[2px]"
         onClick={(e) => e.stopPropagation()}
       />
     ),
@@ -71,7 +74,7 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
       return (
         <Button
           variant="link"
-          // Feature 3: Removido 'truncate' para permitir quebra de linha
+          // Feature 3: Removido 'truncate', adicionado 'whitespace-normal'
           className="p-0 h-auto font-normal text-left whitespace-normal"
           onClick={() => onRowClick(row.original)}
         >
@@ -106,6 +109,7 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
     accessorKey: "valorEstimado",
     header: "Valor Estimado",
     cell: ({ row }) => (
+      // Feature 3: Removida largura fixa
       <div>{formatarValor(row.getValue("valorEstimado"))}</div>
     ),
   },

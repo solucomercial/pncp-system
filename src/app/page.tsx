@@ -240,8 +240,9 @@ function LicitacoesClientPage() {
         setLicitacoes(data.licitacoes);
         setTotal(data.total);
         
-        // BUG 1 (FIX): Não limpar a seleção ao trocar de página.
-        // setRowSelection({}); // <-- LINHA REMOVIDA
+        // BUG 1 (FIX): Linha removida. A seleção não é mais limpa ao
+        // buscar dados (o que acontece a cada mudança de página).
+        // setRowSelection({}); 
       } catch (error) {
         console.error(error);
         toast.error("Erro ao buscar dados", { description: "Não foi possível carregar as licitações." });
@@ -258,7 +259,8 @@ function LicitacoesClientPage() {
   // --- HANDLERS (Funções que ATUALIZAM A URL) ---
 
   const updateQueryParams = (newParams: URLSearchParams) => {
-    router.push(`${pathname}?${newParams.toString()}`, { scroll: false });
+    // Usamos 'replace' para evitar histórico de navegação desnecessário
+    router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
   };
 
   const handleSetPagination = (updater: React.SetStateAction<PaginationState>) => {
@@ -296,7 +298,7 @@ function LicitacoesClientPage() {
     newParams.set("pageSize", pagination.pageSize.toString());
     newParams.set("page", "1"); 
     
-    // BUG 1 (FIX): Limpar a seleção ao aplicar novos filtros
+    // BUG 1 (FIX): Limpa a seleção ao aplicar novos filtros
     setRowSelection({});
     updateQueryParams(newParams);
   };
@@ -394,7 +396,7 @@ function LicitacoesClientPage() {
   const activeFiltersCount = Object.keys(filters).length;
   const selectedRowCount = Object.keys(rowSelection).length;
 
-  // Mapeamento de IDs de coluna para Nomes Amigáveis
+  // Feature 2: Mapeamento de IDs de coluna para Nomes Amigáveis
   const columnNames: Record<string, string> = {
     objetoCompra: "Objeto",
     grauRelevanciaIA: "Relevância",
@@ -454,6 +456,7 @@ function LicitacoesClientPage() {
                           column.toggleVisibility(!!value)
                         }
                       >
+                        {/* Feature 2: Usa o mapa de nomes amigáveis */}
                         {columnNames[column.id] || column.id}
                       </DropdownMenuCheckboxItem>
                     )
