@@ -71,6 +71,7 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
       return (
         <Button
           variant="link"
+          // Feature 3: Removido 'truncate' para permitir quebra de linha
           className="p-0 h-auto font-normal text-left whitespace-normal"
           onClick={() => onRowClick(row.original)}
         >
@@ -103,9 +104,9 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
   },
   {
     accessorKey: "valorEstimado",
-    header: () => <div className="text-right">Valor Estimado</div>,
+    header: "Valor Estimado",
     cell: ({ row }) => (
-      <div className="text-right">{formatarValor(row.getValue("valorEstimado"))}</div>
+      <div>{formatarValor(row.getValue("valorEstimado"))}</div>
     ),
   },
   {
@@ -117,6 +118,28 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
     header: "Publicação",
     cell: ({ row }) => formatarData(row.getValue("dataPublicacaoPNCP")),
   },
+  // --- Feature 2: Novas Colunas ---
+  {
+    accessorKey: "municipio",
+    header: "Município",
+  },
+  {
+    accessorKey: "uf",
+    header: "UF",
+  },
+  {
+    accessorKey: "cnpjOrgao",
+    header: "CNPJ Órgão",
+  },
+  {
+    accessorKey: "situacao",
+    header: "Situação",
+  },
+  {
+    accessorKey: "numeroProcesso",
+    header: "Processo",
+  },
+  // --- Fim das Novas Colunas ---
   {
     id: "actions",
     cell: ({ row }) => {

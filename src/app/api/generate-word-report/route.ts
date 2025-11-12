@@ -11,15 +11,17 @@ import {
   TextRun,
   AlignmentType,
   BorderStyle,
+  // PageBreak foi removido da importação
+  ExternalHyperlink,
 } from "docx";
 import { z } from "zod";
 
-// Schema para validar o corpo do POST
+// Schema para validar o corpo do POST (sem alteração)
 const reportSchema = z.object({
   licitacaoPncpIds: z.array(z.string()).min(1, "Pelo menos um ID é necessário"),
 });
 
-// Funções auxiliares de formatação
+// Funções auxiliares de formatação (sem alteração)
 function formatarValor(valor: any): string {
   const num = Number(valor);
   if (isNaN(num) || num === 0) return "Não informado";
@@ -38,7 +40,7 @@ function formatarData(data: Date | string | null): string {
   });
 }
 
-// Função para criar uma linha de Parágrafo (ex: "Órgão: Ministério...")
+// Função auxiliar para criar parágrafos de informação simples
 const createInfoParagraph = (label: string, text: string | null) => {
   return new Paragraph({
     children: [
@@ -50,6 +52,32 @@ const createInfoParagraph = (label: string, text: string | null) => {
     ],
     spacing: {
       after: 100, // Espaçamento após o parágrafo
+    },
+  });
+};
+
+// Função auxiliar para criar parágrafos de Hiperlink
+const createLinkParagraph = (label: string, link: string | null) => {
+  return new Paragraph({
+    children: [
+      new TextRun({
+        text: `${label}: `,
+        bold: true,
+      }),
+      link
+        ? new ExternalHyperlink({
+            children: [
+              new TextRun({
+                text: link,
+                style: "Hyperlink", // Usa o estilo de Hiperlink
+              }),
+            ],
+            link: link,
+          })
+        : new TextRun("N/A"),
+    ],
+    spacing: {
+      after: 100,
     },
   });
 };
@@ -77,41 +105,106 @@ export async function POST(request: Request) {
     }
     
     // 3. Gerar o Documento Word
-    const sections = licitacoes.map(licitacao => {
-      return {
-        properties: {},
-        children: [
+    
+    const LICITACOES_POR_PAGINA = 3;
+    const reportChildren: Paragraph[] = []; // Array agora contém apenas Parágrafos
+
+    licitacoes.forEach((licitacao, index) => {
+      
+      const pageBreak = index > 0 && index % LICITACOES_POR_PAGINA === 0;
+
+      // 1. Órgão (como título)
+      reportChildren.push(new Paragraph({
+        text: licitacao.orgao || "Órgão Não Informado",
+        heading: HeadingLevel.HEADING_2,
+        style: "styleHeading2",
+        pageBreakBefore: pageBreak, 
+      }));
+      
+      // 2. Nº do processo
+      reportChildren.push(createInfoParagraph("Nº do processo", licitacao.numeroProcesso));
+      
+      // 3. Objeto da compra
+      reportChildren.push(createInfoParagraph("Objeto da compra", licitacao.objetoCompra));
+      
+      // 4. Valor estimado
+      reportChildren.push(createInfoParagraph("Valor estimado", formatarValor(licitacao.valorEstimado)));
+      
+      // 5. Modalidade
+      reportChildren.push(createInfoParagraph("Modalidade", licitacao.modalidade));
+      
+      // 6. Publicação
+      reportChildren.push(createInfoParagraph("Publicação", formatarData(licitacao.dataPublicacaoPNCP)));
+      
+      // 7. Município/UF
+      reportChildren.push(createInfoParagraph("Município/UF", `${licitacao.municipio || "N/A"}/${licitacao.uf || "N/A"}`));
+      
+      // 8. Link no site de origem (como Hiperlink)
+      reportChildren.push(createLinkParagraph("Link no site de origem", licitacao.linkSistemaOrigem));
+
+      // 9. Link para baixar a documentação (como Hiperlinks)
+      reportChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Links para baixar a documentação:", bold: true })],
+          spacing: { after: 100 },
+        })
+      );
+
+      if (licitacao.documentosLinks && licitacao.documentosLinks.length > 0) {
+        licitacao.documentosLinks.forEach(link => {
+          reportChildren.push(
+            new Paragraph({
+              children: [
+                new ExternalHyperlink({
+                  children: [new TextRun({ text: link, style: "Hyperlink" })],
+                  link: link,
+                }),
+              ],
+              bullet: { level: 0 }, 
+              spacing: { after: 100 },
+            })
+          );
+        });
+      } else {
+        reportChildren.push(
           new Paragraph({
-            text: licitacao.orgao || "Órgão Não Informado",
-            heading: HeadingLevel.HEADING_2,
-            style: "styleHeading2",
-          }),
-          createInfoParagraph("Objeto da Compra", licitacao.objetoCompra),
-          createInfoParagraph("Valor Estimado", formatarValor(licitacao.valorEstimado)),
-          createInfoParagraph("Modalidade", licitacao.modalidade),
-          createInfoParagraph("Publicação", formatarData(licitacao.dataPublicacaoPNCP)),
-          createInfoParagraph("Município/UF", `${licitacao.municipio}/${licitacao.uf}`),
-          new Paragraph({ // Parágrafo de separação
-            text: "",
-            border: {
-                bottom: {
-                    color: "auto",
-                    space: 1,
-                    style: BorderStyle.SINGLE,
-                    size: 6,
-                },
-            },
-            spacing: {
-                after: 300,
-                before: 300
-            }
+            children: [new TextRun("Nenhum documento encontrado.")],
+            bullet: { level: 0 },
+            spacing: { after: 100 },
           })
-        ],
-      };
+        );
+      }
+
+      // Adiciona um separador
+      if ((index + 1) % LICITACOES_POR_PAGINA !== 0 && index < licitacoes.length - 1) {
+        reportChildren.push(new Paragraph({
+          text: "",
+          border: {
+              bottom: {
+                  color: "auto",
+                  space: 1,
+                  style: BorderStyle.SINGLE,
+                  size: 6,
+              },
+          },
+          spacing: { after: 300, before: 300 }
+        }));
+      }
     });
 
     const doc = new Document({
       styles: {
+        characterStyles: [
+          {
+              id: "Hyperlink",
+              name: "Hyperlink",
+              basedOn: "Normal",
+              run: {
+                  color: "0000EE",
+                  underline: { type: "single" },
+              },
+          },
+        ],
         paragraphStyles: [
             {
                 id: "styleHeading1",
@@ -119,15 +212,8 @@ export async function POST(request: Request) {
                 basedOn: "Normal",
                 next: "Normal",
                 quickFormat: true,
-                run: {
-                    size: 32, // 16pt
-                    bold: true,
-                    color: "333333",
-                },
-                paragraph: {
-                    spacing: { after: 240 },
-                    alignment: AlignmentType.CENTER
-                }
+                run: { size: 32, bold: true, color: "333333" },
+                paragraph: { spacing: { after: 240 }, alignment: AlignmentType.CENTER }
             },
             {
                 id: "styleHeading2",
@@ -135,14 +221,8 @@ export async function POST(request: Request) {
                 basedOn: "Normal",
                 next: "Normal",
                 quickFormat: true,
-                run: {
-                    size: 28, // 14pt
-                    bold: true,
-                    color: "555555",
-                },
-                paragraph: {
-                    spacing: { after: 120, before: 240 }
-                }
+                run: { size: 28, bold: true, color: "555555" },
+                paragraph: { spacing: { after: 120, before: 240 } }
             },
         ]
       },
@@ -152,24 +232,27 @@ export async function POST(request: Request) {
           children: [
             new Paragraph({
               text: "Relatório de Licitações",
-              heading: HeadingLevel.HEADING_1,
               style: "styleHeading1"
             }),
             new Paragraph({
               text: `Relatório gerado em: ${formatarData(new Date())}`,
               alignment: AlignmentType.CENTER
             }),
+            // --- LINHA PROBLEMÁTICA REMOVIDA ---
+            // new PageBreak(), 
           ],
         },
-        // Adiciona as seções de cada licitação
-        ...sections
+        { // Conteúdo
+          properties: {},
+          children: reportChildren, // Adiciona o array de Parágrafos
+        }
       ],
     });
 
     // 4. Empacotar e enviar o buffer do arquivo
-    const buffer = await Packer.toBuffer(doc);
+    const blob = await Packer.toBlob(doc);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(blob, {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -122,6 +122,9 @@ export const pncpLicitacao = pgTable("PncpLicitacao", {
   justificativaPresencial: text("justificativaPresencial"),
   grauRelevanciaIA: text("grauRelevanciaIA"),
   justificativaRelevanciaIA: text("justificativaRelevanciaIA"),
+  
+  // --- CAMPO ADICIONADO (Tarefa 1) ---
+  documentosLinks: text("documentosLinks").array(),
 });
 
 export const syncLog = pgTable("SyncLog", {

@@ -1,3 +1,4 @@
+// Arquivo: src/components/FilterDialog.tsx
 "use client";
 
 import {
@@ -7,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog"; // Alterado de Sheet para Dialog
+} from "@/components/ui/dialog"; 
 import {
   Select,
   SelectContent,
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect } from "react";
-import { Filters } from "@/app/page";
+import { Filters } from "@/app/page"; // Importa a interface da page.tsx
 
 interface FilterDialogProps {
   isOpen: boolean;
@@ -46,11 +47,12 @@ export default function FilterDialog({
   onApply,
   currentFilters,
 }: FilterDialogProps) {
+  // O estado local é sincronizado com os filtros da URL
   const [filters, setFilters] = useState<Filters>(currentFilters);
 
   useEffect(() => {
     setFilters(currentFilters);
-  }, [currentFilters]);
+  }, [currentFilters, isOpen]); // Sincroniza quando os filtros da URL mudam ou o dialog abre
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -85,17 +87,22 @@ export default function FilterDialog({
         cleanedFilters[key as keyof Filters] = value;
       }
     });
-    onApply(cleanedFilters);
+    onApply(cleanedFilters); // Envia os filtros para a page.tsx
   };
 
   const handleClear = () => {
-    const defaultFilters = {};
-    setFilters(defaultFilters);
-    onApply(defaultFilters);
+    setFilters({}); // Limpa o estado local
+    onApply({}); // Envia filtros vazios (a page.tsx aplicará os padrões)
   };
+  
+  // Helper para formatar datas, lidando com fusos horários
+  const formatDateForPicker = (dateString?: string) => {
+    if (!dateString) return undefined;
+    // Corrige o problema de fuso horário ao converter AAAA-MM-DD para um objeto Date
+    return new Date(dateString.replace(/-/g, '\/'));
+  }
 
   return (
-    // Alterado para Dialog
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl flex flex-col max-h-[90vh]">
         <DialogHeader>
@@ -105,7 +112,6 @@ export default function FilterDialog({
           </DialogDescription>
         </DialogHeader>
         
-        {/* Adicionada ScrollArea para o conteúdo do Dialog */}
         <ScrollArea className="flex-grow pr-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-4">
             
@@ -249,7 +255,7 @@ export default function FilterDialog({
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {filters.dataInicial ? (
-                      format(new Date(filters.dataInicial.replace(/-/g, '\/')), "dd/MM/yyyy", { locale: ptBR })
+                      format(formatDateForPicker(filters.dataInicial)!, "dd/MM/yyyy", { locale: ptBR })
                     ) : (
                       <span>Selecione a data inicial</span>
                     )}
@@ -258,7 +264,7 @@ export default function FilterDialog({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={filters.dataInicial ? new Date(filters.dataInicial.replace(/-/g, '\/')) : undefined}
+                    selected={formatDateForPicker(filters.dataInicial)}
                     onSelect={(date) => handleDateChange("dataInicial", date)}
                     initialFocus
                     locale={ptBR}
@@ -279,7 +285,7 @@ export default function FilterDialog({
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {filters.dataFinal ? (
-                      format(new Date(filters.dataFinal.replace(/-/g, '\/')), "dd/MM/yyyy", { locale: ptBR })
+                      format(formatDateForPicker(filters.dataFinal)!, "dd/MM/yyyy", { locale: ptBR })
                     ) : (
                       <span>Selecione a data final</span>
                     )}
@@ -288,7 +294,7 @@ export default function FilterDialog({
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={filters.dataFinal ? new Date(filters.dataFinal.replace(/-/g, '\/')) : undefined}
+                    selected={formatDateForPicker(filters.dataFinal)}
                     onSelect={(date) => handleDateChange("dataFinal", date)}
                     initialFocus
                     locale={ptBR}

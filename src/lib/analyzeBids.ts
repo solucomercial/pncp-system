@@ -4,7 +4,7 @@ import { pncpLicitacao } from "@/lib/db/schema";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash",
   generationConfig: {
     responseMimeType: "application/json", 
     temperature: 0.2,
@@ -18,22 +18,26 @@ interface AIAnalysis {
   justificativaRelevanciaIA: string;
 }
 
+// --- TAREFA 2: Tipo de retorno atualizado ---
+interface FullAnalysis extends AIAnalysis {
+  allFileUrls: string[];
+}
+
 // Tipo para a licitação vinda da API PNCP (antes do upsert)
 type ApiPncpLicitacao = any; 
 
 export async function analyzeLicitacao(
-  // Aceita o tipo inferido do schema Drizzle OU o tipo da API
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao,
-): Promise<AIAnalysis | null> {
+): Promise<FullAnalysis | null> { // --- TAREFA 2: Tipo de retorno atualizado ---
   console.log(`Analisando licitação: ${licitacao.numeroControlePNCP}`);
   
-  // 1. Processa e salva os documentos (agora usando Drizzle)
-  const fullTextFromPdfs = await processAndEmbedDocuments(licitacao);
+  // 1. Processa e salva os documentos (agora retorna texto E links)
+  // --- TAREFA 2: Captura o retorno completo ---
+  const { fullTextFromAllPdfs, allFileUrls } = await processAndEmbedDocuments(licitacao);
 
   // 2. Prepara o contexto da licitação
   const licitacaoContext = {
     objeto: licitacao.objetoCompra,
-    // Converte 'Decimal' (do Prisma) ou 'string' (do Drizzle/API) para 'number'
     valor: Number(licitacao.valorEstimado) || 0, 
     modalidade: licitacao.modalidade,
     orgao: licitacao.orgao,
@@ -64,12 +68,12 @@ export async function analyzeLicitacao(
     ${JSON.stringify(licitacaoContext, null, 2)}
 
     --- CONTEÚDO DOS DOCUMENTOS (EDITAL/ANEXOS) ---
-    ${fullTextFromPdfs || "Nenhum documento PDF encontrado ou processado."}
+    ${fullTextFromAllPdfs || "Nenhum documento PDF encontrado ou processado."}
     ---
   `;
 
   try {
-    // 4. Chamar a IA (sem alteração)
+    // 4. Chamar a IA
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
     });
@@ -79,7 +83,11 @@ export async function analyzeLicitacao(
 
     console.log(`Análise concluída para ${licitacao.numeroControlePNCP}: Relevância ${analysis.grauRelevanciaIA}`);
     
-    return analysis;
+    // --- TAREFA 2: Retorna a análise E os links ---
+    return {
+      ...analysis,
+      allFileUrls: allFileUrls,
+    };
     
   } catch (error) {
     console.error(`Erro ao analisar licitação ${licitacao.numeroControlePNCP}:`, error);
@@ -88,7 +96,8 @@ export async function analyzeLicitacao(
       resumo: "Análise de IA falhou.",
       palavrasChave: [],
       grauRelevanciaIA: "Média", // Default
-      justificativaRelevanciaIA: "Erro no processamento da IA."
+      justificativaRelevanciaIA: "Erro no processamento da IA.",
+      allFileUrls: allFileUrls, // --- TAREFA 2: Retorna os links mesmo em erro ---
     };
   }
 }

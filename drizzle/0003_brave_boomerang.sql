@@ -1,0 +1,1 @@
+ALTER TABLE "PncpLicitacao" ADD COLUMN "documentosLinks" text[];

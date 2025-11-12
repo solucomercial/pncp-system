@@ -79,6 +79,7 @@ export async function fetchLicitacoesFromPNCP(
             linkPNCP: item.linkPNCP,
             iaResumo: null,
             iaPalavrasChave: [],
+            documentosLinks: [], // --- TAREFA 2: Inicializa o campo ---
             modoDisputa: item.modoDisputa ? item.modoDisputa.nome : null,
             criterioJulgamento: item.criterioJulgamento
               ? item.criterioJulgamento.nome
@@ -117,6 +118,8 @@ async function analyzeBidsForStorage(licitacoes: NovaLicitacao[]) {
       iaPalavrasChave: analysis?.palavrasChave || [],
       grauRelevanciaIA: analysis?.grauRelevanciaIA || "Média",
       justificativaRelevanciaIA: analysis?.justificativaRelevanciaIA || "N/A",
+      // --- TAREFA 2: Adiciona os links ao objeto final ---
+      documentosLinks: analysis?.allFileUrls || [], 
       updatedAt: new Date(),
     };
     

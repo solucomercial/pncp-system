@@ -1,12 +1,18 @@
+// Arquivo: src/lib/pdfProcessing.ts
 import { db } from "@/lib/db";
 import { licitacaoDocumento, pncpLicitacao } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjsLib from "pdfjs-dist";
 import { generateEmbedding } from "./embedding";
 import { pncp } from "./comprasApi";
 
 type ApiPncpLicitacao = any; 
 
+// --- TAREFA 2: Tipo de retorno atualizado ---
+interface ProcessResult {
+  fullTextFromAllPdfs: string;
+  allFileUrls: string[];
+}
 
 async function downloadFile(url: string): Promise<Buffer> {
   const response = await fetch(url);
@@ -27,8 +33,7 @@ async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
     const textContent = await page.getTextContent();
     
     const pageText = textContent.items
-      // @ts-ignore
-      .map((item) => item.str)
+      .map((item: any) => item.str) 
       .join(" ");
       
     fullText += pageText + "\n";
@@ -57,9 +62,10 @@ function chunkText(
 
 export async function processAndEmbedDocuments(
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao, 
-): Promise<string> {
+): Promise<ProcessResult> { // --- TAREFA 2: Tipo de retorno atualizado ---
   console.log(`[ETL] Processando documentos para: ${licitacao.numeroControlePNCP}`);
   let fullTextFromAllPdfs = "";
+  let allFileUrls: string[] = []; // --- TAREFA 2: Array para guardar links ---
 
   try {
     const files = await pncp.getLicitacaoFiles(
@@ -68,15 +74,21 @@ export async function processAndEmbedDocuments(
       licitacao.sequencialCompra.toString(),
     );
 
+    // --- TAREFA 2: Captura TODOS os links de arquivos válidos ---
+    allFileUrls = files
+      .filter((f: any) => f.url)
+      .map((f: any) => f.url as string);
+
     const pdfFiles = files.filter(
-      (f) => f.tipo === "application/pdf" && f.url,
+      (f: any) => f.tipo === "application/pdf" && f.url,
     );
     
     if (pdfFiles.length === 0) {
       console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP}.`);
-      return "";
+      // Retorna os links (mesmo que não sejam PDF) e o texto vazio
+      return { fullTextFromAllPdfs: "", allFileUrls };
     }
-
+    
     await db.delete(licitacaoDocumento)
       .where(eq(licitacaoDocumento.licitacaoPncpId, licitacao.numeroControlePNCP));
 
@@ -117,10 +129,10 @@ export async function processAndEmbedDocuments(
     }
 
     console.log(`[ETL] Documentos processados com sucesso para ${licitacao.numeroControlePNCP}.`);
-    return fullTextFromAllPdfs;
+    return { fullTextFromAllPdfs, allFileUrls };
 
   } catch (error) {
     console.error(`[ETL] Erro fatal no pipeline para ${licitacao.numeroControlePNCP}:`, error);
-    return "";
+    return { fullTextFromAllPdfs: "", allFileUrls: [] };
   }
 }
