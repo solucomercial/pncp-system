@@ -1,12 +1,12 @@
-// Arquivo: src/lib/pdfProcessing.ts
 import { db } from "@/lib/db";
 import { licitacaoDocumento, pncpLicitacao } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { generateEmbedding } from "./embedding";
 import { pncp } from "./comprasApi";
 
 type ApiPncpLicitacao = any; 
+
 
 async function downloadFile(url: string): Promise<Buffer> {
   const response = await fetch(url);
@@ -19,7 +19,6 @@ async function downloadFile(url: string): Promise<Buffer> {
 
 async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   const data = new Uint8Array(buffer);
-  // O 'getDocument' no Node.js funciona com o buffer de dados
   const doc = await pdfjsLib.getDocument({ data }).promise;
   let fullText = "";
 
@@ -27,9 +26,9 @@ async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
     const page = await doc.getPage(i);
     const textContent = await page.getTextContent();
     
-    // Os tipos agora são inferidos corretamente pela importação principal
     const pageText = textContent.items
-      .map((item: any) => item.str) // Usamos 'any' por segurança
+      // @ts-ignore
+      .map((item) => item.str)
       .join(" ");
       
     fullText += pageText + "\n";
@@ -48,7 +47,6 @@ function chunkText(
 
   let i = 0;
   while (i < cleanedText.length) {
-    // Corrigido bug no 'end'
     const end = Math.min(i + chunkSize, cleanedText.length);
     chunks.push(cleanedText.slice(i, end));
     i += chunkSize - overlap;
@@ -71,14 +69,14 @@ export async function processAndEmbedDocuments(
     );
 
     const pdfFiles = files.filter(
-      (f: any) => f.tipo === "application/pdf" && f.url,
+      (f) => f.tipo === "application/pdf" && f.url,
     );
     
     if (pdfFiles.length === 0) {
       console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP}.`);
       return "";
     }
-    
+
     await db.delete(licitacaoDocumento)
       .where(eq(licitacaoDocumento.licitacaoPncpId, licitacao.numeroControlePNCP));
 
