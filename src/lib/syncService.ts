@@ -59,7 +59,7 @@ export async function fetchLicitacoesFromPNCP(
       );
       todasLicitacoes.push(
         ...licitacoesDaPagina.map(
-          (item: any): NovaLicitacao => ({
+          (item: Record<string, any>): NovaLicitacao => ({ // <-- CORRIGIDO AQUI
             numeroControlePNCP: item.numeroControlePNCP,
             cnpjOrgao: item.orgao.cnpj,
             orgao: item.orgao.nome,
@@ -79,7 +79,7 @@ export async function fetchLicitacoesFromPNCP(
             linkPNCP: item.linkPNCP,
             iaResumo: null,
             iaPalavrasChave: [],
-            documentosLinks: [], // --- TAREFA 2: Inicializa o campo ---
+            documentosLinks: [], 
             modoDisputa: item.modoDisputa ? item.modoDisputa.nome : null,
             criterioJulgamento: item.criterioJulgamento
               ? item.criterioJulgamento.nome
@@ -118,7 +118,6 @@ async function analyzeBidsForStorage(licitacoes: NovaLicitacao[]) {
       iaPalavrasChave: analysis?.palavrasChave || [],
       grauRelevanciaIA: analysis?.grauRelevanciaIA || "Média",
       justificativaRelevanciaIA: analysis?.justificativaRelevanciaIA || "N/A",
-      // --- TAREFA 2: Adiciona os links ao objeto final ---
       documentosLinks: analysis?.allFileUrls || [], 
       updatedAt: new Date(),
     };
@@ -211,13 +210,14 @@ export async function runSync(daysAgo: number = 1) {
       .where(eq(syncLog.id, log.id));
     
     console.log(`[SyncService] runSync para ${dateString} concluído com sucesso.`);
-  } catch (error: any) {
+  } catch (error: unknown) { // <-- CORRIGIDO AQUI
 
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     await db.update(syncLog)
       .set({
         status: "failed",
         endTime: new Date(),
-        errorMessage: error.message,
+        errorMessage: errorMessage,
       })
       .where(eq(syncLog.id, log.id));
     

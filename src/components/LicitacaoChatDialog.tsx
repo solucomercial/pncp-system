@@ -73,7 +73,7 @@ export default function LicitacaoChatDialog({
       } else {
         setCacheStatus("empty");
       }
-    } catch (error) {
+    } catch (_error) {
       setCacheStatus("error");
       toast.error("Erro ao verificar documentos da licitação.");
     } finally {

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { pncpLicitacao } from "@/lib/db/schema";
 import { and, gte, lte, ilike } from "drizzle-orm";
 
-function convertToCSV(data: any[]) {
+function convertToCSV(data: Record<string, any>[]) {
   if (data.length === 0) {
     return "";
   }
@@ -38,10 +38,10 @@ export async function GET(request: Request) {
     const conditions = [];
 
     if (dataInicial) {
-      conditions.push(gte(pncpLicitacao.dataPublicacaoPNCP, new Date(dataInicial)));
+      conditions.push(gte(pncpLicitacao.dataPublicacaoPNCP, new Date(dataInicial.replace(/-/g, '\/'))));
     }
     if (dataFinal) {
-      const dataFinalMaisUm = new Date(dataFinal);
+      const dataFinalMaisUm = new Date(dataFinal.replace(/-/g, '\/'));
       dataFinalMaisUm.setDate(dataFinalMaisUm.getDate() + 1);
       conditions.push(lte(pncpLicitacao.dataPublicacaoPNCP, dataFinalMaisUm));
     }

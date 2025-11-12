@@ -15,7 +15,6 @@ interface LicitacaoGridProps {
   onRowClick: (licitacao: Licitacao) => void
 }
 
-// Funções de formatação
 const formatarData = (data: Date | string | null) => {
   if (!data) return "N/A"
   return new Date(data).toLocaleDateString("pt-BR", {
@@ -25,7 +24,7 @@ const formatarData = (data: Date | string | null) => {
   })
 }
 
-const formatarValor = (valor: any) => {
+const formatarValor = (valor: string | number | null | undefined) => {
   const num = Number(valor)
   if (isNaN(num) || num === 0) return "Não informado"
   return num.toLocaleString("pt-BR", {
@@ -48,7 +47,7 @@ export function LicitacaoGrid({ table, onRowClick }: LicitacaoGridProps) {
               <Checkbox
                 checked={row.getIsSelected()}
                 onCheckedChange={(value) => row.toggleSelected(!!value)}
-                onClick={(e) => e.stopPropagation()} // Impede o card de abrir o dialog
+                onClick={(e) => e.stopPropagation()}
                 aria-label="Selecionar licitação"
                 className="bg-background/80"
               />

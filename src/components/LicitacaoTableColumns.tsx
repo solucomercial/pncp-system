@@ -16,10 +16,8 @@ import {
 
 type Licitacao = typeof pncpLicitacao.$inferSelect
 
-// Funções de formatação
 const formatarData = (data: Date | string | null) => {
   if (!data) return "N/A"
-  // Corrigindo para lidar com datas que podem vir como string
   return new Date(data).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -27,7 +25,7 @@ const formatarData = (data: Date | string | null) => {
   })
 }
 
-const formatarValor = (valor: any) => {
+const formatarValor = (valor: string | number | null | undefined) => {
   const num = Number(valor)
   if (isNaN(num) || num === 0) return "Não informado"
   return num.toLocaleString("pt-BR", {
@@ -36,7 +34,6 @@ const formatarValor = (valor: any) => {
   })
 }
 
-// Props para as colunas, permitindo injetar o handler de clique
 type GetColumnsProps = {
   onRowClick: (licitacao: Licitacao) => void
 }
@@ -74,7 +71,6 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
       return (
         <Button
           variant="link"
-          // Feature 3: Removido 'truncate', adicionado 'whitespace-normal'
           className="p-0 h-auto font-normal text-left whitespace-normal"
           onClick={() => onRowClick(row.original)}
         >
@@ -109,7 +105,6 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
     accessorKey: "valorEstimado",
     header: "Valor Estimado",
     cell: ({ row }) => (
-      // Feature 3: Removida largura fixa
       <div>{formatarValor(row.getValue("valorEstimado"))}</div>
     ),
   },
@@ -122,7 +117,6 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
     header: "Publicação",
     cell: ({ row }) => formatarData(row.getValue("dataPublicacaoPNCP")),
   },
-  // --- Feature 2: Novas Colunas ---
   {
     accessorKey: "municipio",
     header: "Município",
@@ -143,7 +137,6 @@ export const getLicitacaoTableColumns = ({ onRowClick }: GetColumnsProps): Colum
     accessorKey: "numeroProcesso",
     header: "Processo",
   },
-  // --- Fim das Novas Colunas ---
   {
     id: "actions",
     cell: ({ row }) => {

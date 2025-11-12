@@ -4,7 +4,7 @@ import { pncpLicitacao } from "@/lib/db/schema";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
+  model: "gemini-1.5-flash",
   generationConfig: {
     responseMimeType: "application/json", 
     temperature: 0.2,
@@ -18,26 +18,26 @@ interface AIAnalysis {
   justificativaRelevanciaIA: string;
 }
 
-// --- TAREFA 2: Tipo de retorno atualizado ---
 interface FullAnalysis extends AIAnalysis {
   allFileUrls: string[];
 }
 
 // Tipo para a licitação vinda da API PNCP (antes do upsert)
-type ApiPncpLicitacao = any; 
+type ApiPncpLicitacao = Record<string, any>; 
 
 export async function analyzeLicitacao(
+  // Aceita o tipo inferido do schema Drizzle OU o tipo da API
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao,
-): Promise<FullAnalysis | null> { // --- TAREFA 2: Tipo de retorno atualizado ---
+): Promise<FullAnalysis | null> {
   console.log(`Analisando licitação: ${licitacao.numeroControlePNCP}`);
   
   // 1. Processa e salva os documentos (agora retorna texto E links)
-  // --- TAREFA 2: Captura o retorno completo ---
   const { fullTextFromAllPdfs, allFileUrls } = await processAndEmbedDocuments(licitacao);
 
   // 2. Prepara o contexto da licitação
   const licitacaoContext = {
     objeto: licitacao.objetoCompra,
+    // Converte 'Decimal' (do Prisma) ou 'string' (do Drizzle/API) para 'number'
     valor: Number(licitacao.valorEstimado) || 0, 
     modalidade: licitacao.modalidade,
     orgao: licitacao.orgao,
@@ -46,7 +46,7 @@ export async function analyzeLicitacao(
     dataPublicacao: licitacao.dataPublicacaoPNCP,
   };
 
-  // 3. Define o prompt de relevância (sem alteração)
+  // 3. Define o prompt de relevância
   const systemPrompt = `
     Você é um especialista em licitações públicas no Brasil.
     Sua tarefa é analisar a seguinte licitação e retornar um JSON ESTRITO.
@@ -68,12 +68,13 @@ export async function analyzeLicitacao(
     ${JSON.stringify(licitacaoContext, null, 2)}
 
     --- CONTEÚDO DOS DOCUMENTOS (EDITAL/ANEXOS) ---
-    ${fullTextFromAllPdfs || "Nenhum documento PDF encontrado ou processado."}
+    {/* --- CORREÇÃO AQUI --- */}
+    ${fullTextFromAllPdfs || "Nenhum documento PDF encontrado ou processado."} 
     ---
   `;
 
   try {
-    // 4. Chamar a IA
+    // 4. Chamar a IA (sem alteração)
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
     });
@@ -83,7 +84,6 @@ export async function analyzeLicitacao(
 
     console.log(`Análise concluída para ${licitacao.numeroControlePNCP}: Relevância ${analysis.grauRelevanciaIA}`);
     
-    // --- TAREFA 2: Retorna a análise E os links ---
     return {
       ...analysis,
       allFileUrls: allFileUrls,
@@ -97,7 +97,7 @@ export async function analyzeLicitacao(
       palavrasChave: [],
       grauRelevanciaIA: "Média", // Default
       justificativaRelevanciaIA: "Erro no processamento da IA.",
-      allFileUrls: allFileUrls, // --- TAREFA 2: Retorna os links mesmo em erro ---
+      allFileUrls: allFileUrls, // Retorna os links mesmo em erro
     };
   }
 }

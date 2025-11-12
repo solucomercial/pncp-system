@@ -14,11 +14,11 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    // @ts-ignore
+    // @ts-expect-error Id do usuário é injetado pelo callback do session
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
-    // @ts-ignore
+    // @ts-expect-error Id do usuário é injetado pelo callback do session
     const userId = session.user.id as string;
 
     const body = await req.json();

@@ -17,8 +17,6 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table";
-
-// Componentes do Projeto
 import { pncpLicitacao } from "@/lib/db/schema";
 import { UserNav } from "@/components/UserNav";
 import FilterDialog from "@/components/FilterDialog";
@@ -27,8 +25,6 @@ import { LicitacaoGrid } from "@/components/LicitacaoGrid";
 import { LicitacaoTable } from "@/components/LicitacaoTable";
 import { getLicitacaoTableColumns } from "@/components/LicitacaoTableColumns";
 import { DataTablePagination } from "@/components/DataTablePagination";
-
-// Componentes UI
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -58,8 +54,6 @@ import {
   Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// --- Tipos e Funções Auxiliares ---
 
 type Licitacao = typeof pncpLicitacao.$inferSelect;
 type ViewMode = "grid" | "table";
@@ -92,10 +86,7 @@ const getDefaultFilters = (): Filters => {
   };
 };
 
-// --- Componente de Carregamento (Skeleton) ---
-
 function PageSkeleton({ viewMode = "grid" }: { viewMode?: ViewMode }) {
-  // Skeleton da tabela agora reflete 8 colunas (para caber as novas)
   const tableSkeletonColumns = 8;
   return (
     <>
@@ -140,15 +131,10 @@ function PageSkeleton({ viewMode = "grid" }: { viewMode?: ViewMode }) {
   )
 }
 
-// --- Componente Principal da Página (Cliente) ---
-
 function LicitacoesClientPage() {
-  // Hooks de Roteamento
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  // Estados Derivados da URL (Fonte da Verdade)
   const { filters, pagination, sorting, viewMode } = useMemo(() => {
     const params = new URLSearchParams(searchParams);
     
@@ -189,18 +175,13 @@ function LicitacoesClientPage() {
     };
   }, [searchParams]);
 
-  // Estados de UI e Dados
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedLicitacao, setSelectedLicitacao] = useState<Licitacao | null>(null);
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
-  
-  // Estados do Tanstack Table
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  
-  // Feature 2: Colunas novas (ex: municipio, uf) são ocultadas por padrão
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     municipio: false,
     uf: false,
@@ -209,7 +190,6 @@ function LicitacoesClientPage() {
     numeroProcesso: false,
   });
 
-  // --- EFEITO DE BUSCA DE DADOS ---
   useEffect(() => {
     const fetchLicitacoes = async () => {
       setIsLoading(true);
@@ -240,12 +220,10 @@ function LicitacoesClientPage() {
         setLicitacoes(data.licitacoes);
         setTotal(data.total);
         
-        // BUG 1 (FIX): Linha removida. A seleção não é mais limpa ao
-        // buscar dados (o que acontece a cada mudança de página).
-        // setRowSelection({}); 
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(error);
-        toast.error("Erro ao buscar dados", { description: "Não foi possível carregar as licitações." });
+        const description = error instanceof Error ? error.message : "Não foi possível carregar as licitações.";
+        toast.error("Erro ao buscar dados", { description });
         setLicitacoes([]);
         setTotal(0);
       } finally {
@@ -256,10 +234,7 @@ function LicitacoesClientPage() {
     fetchLicitacoes();
   }, [searchParams, filters, pagination, sorting]); 
 
-  // --- HANDLERS (Funções que ATUALIZAM A URL) ---
-
   const updateQueryParams = (newParams: URLSearchParams) => {
-    // Usamos 'replace' para evitar histórico de navegação desnecessário
     router.replace(`${pathname}?${newParams.toString()}`, { scroll: false });
   };
 
@@ -298,7 +273,6 @@ function LicitacoesClientPage() {
     newParams.set("pageSize", pagination.pageSize.toString());
     newParams.set("page", "1"); 
     
-    // BUG 1 (FIX): Limpa a seleção ao aplicar novos filtros
     setRowSelection({});
     updateQueryParams(newParams);
   };
@@ -330,14 +304,14 @@ function LicitacoesClientPage() {
       rowSelection,
       columnVisibility,
     },
-    getRowId: (row) => row.numeroControlePNCP, // Essencial para seleção entre páginas
+    getRowId: (row) => row.numeroControlePNCP,
     enableRowSelection: true,
     manualPagination: true,
     manualSorting: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: handleSetSorting,
     onPaginationChange: handleSetPagination,
-    onColumnVisibilityChange: setColumnVisibility, // Gerencia colunas ocultas
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -356,7 +330,7 @@ function LicitacoesClientPage() {
     toast.loading("Gerando seu relatório...", { id: "download-toast" });
 
     try {
-      const selectedIds = Object.keys(rowSelection); // BUG 1 (FIX): Lê direto do estado
+      const selectedIds = Object.keys(rowSelection); 
 
       if (selectedIds.length === 0) {
         throw new Error("Nenhuma licitação selecionada.");
@@ -384,10 +358,11 @@ function LicitacoesClientPage() {
       window.URL.revokeObjectURL(url);
 
       toast.success("Relatório gerado!", { id: "download-toast" });
-      setRowSelection({}); // Limpa a seleção após o sucesso
-    } catch (error: any) {
+      setRowSelection({}); 
+    } catch (error: unknown) {
       console.error(error);
-      toast.error("Erro ao gerar relatório", { id: "download-toast", description: error.message });
+      const description = error instanceof Error ? error.message : "Erro desconhecido";
+      toast.error("Erro ao gerar relatório", { id: "download-toast", description });
     } finally {
       setIsDownloading(false);
     }
@@ -396,7 +371,6 @@ function LicitacoesClientPage() {
   const activeFiltersCount = Object.keys(filters).length;
   const selectedRowCount = Object.keys(rowSelection).length;
 
-  // Feature 2: Mapeamento de IDs de coluna para Nomes Amigáveis
   const columnNames: Record<string, string> = {
     objetoCompra: "Objeto",
     grauRelevanciaIA: "Relevância",
@@ -456,7 +430,6 @@ function LicitacoesClientPage() {
                           column.toggleVisibility(!!value)
                         }
                       >
-                        {/* Feature 2: Usa o mapa de nomes amigáveis */}
                         {columnNames[column.id] || column.id}
                       </DropdownMenuCheckboxItem>
                     )
@@ -470,7 +443,6 @@ function LicitacoesClientPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* FEATURE 4: Botão Filtros Responsivo */}
             <Button
               variant="outline"
               size="sm"
@@ -486,7 +458,6 @@ function LicitacoesClientPage() {
               )}
             </Button>
             
-            {/* FEATURE 4: Botão Gerar Relatório Responsivo */}
             <Button
               variant="default"
               size="sm"
@@ -557,11 +528,8 @@ function LicitacoesClientPage() {
   );
 }
 
-// --- Componente Wrapper com Suspense ---
-
 export default function Page() {
   return (
-    // Suspense é crucial para que useSearchParams() funcione corretamente
     <Suspense fallback={<PageSkeleton />}>
       <LicitacoesClientPage />
     </Suspense>

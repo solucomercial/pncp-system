@@ -11,18 +11,17 @@ import {
   TextRun,
   AlignmentType,
   BorderStyle,
-  // PageBreak foi removido da importação
   ExternalHyperlink,
 } from "docx";
 import { z } from "zod";
 
-// Schema para validar o corpo do POST (sem alteração)
+// Schema para validar o corpo do POST
 const reportSchema = z.object({
   licitacaoPncpIds: z.array(z.string()).min(1, "Pelo menos um ID é necessário"),
 });
 
-// Funções auxiliares de formatação (sem alteração)
-function formatarValor(valor: any): string {
+// Funções auxiliares de formatação
+function formatarValor(valor: string | number | null | undefined): string { // <-- CORRIGIDO AQUI
   const num = Number(valor);
   if (isNaN(num) || num === 0) return "Não informado";
   return num.toLocaleString("pt-BR", {
@@ -40,7 +39,7 @@ function formatarData(data: Date | string | null): string {
   });
 }
 
-// Função auxiliar para criar parágrafos de informação simples
+// Função para criar uma linha de Parágrafo (ex: "Órgão: Ministério...")
 const createInfoParagraph = (label: string, text: string | null) => {
   return new Paragraph({
     children: [
@@ -107,7 +106,7 @@ export async function POST(request: Request) {
     // 3. Gerar o Documento Word
     
     const LICITACOES_POR_PAGINA = 3;
-    const reportChildren: Paragraph[] = []; // Array agora contém apenas Parágrafos
+    const reportChildren: Paragraph[] = []; 
 
     licitacoes.forEach((licitacao, index) => {
       
@@ -238,13 +237,12 @@ export async function POST(request: Request) {
               text: `Relatório gerado em: ${formatarData(new Date())}`,
               alignment: AlignmentType.CENTER
             }),
-            // --- LINHA PROBLEMÁTICA REMOVIDA ---
-            // new PageBreak(), 
+            // new PageBreak(), // Removido na última correção
           ],
         },
         { // Conteúdo
           properties: {},
-          children: reportChildren, // Adiciona o array de Parágrafos
+          children: reportChildren,
         }
       ],
     });

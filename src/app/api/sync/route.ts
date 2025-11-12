@@ -33,10 +33,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       message: `Sincronização para o dia anterior iniciada com sucesso.`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro na API de sync:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
-      { error: "Erro interno do servidor", details: error.message },
+      { error: "Erro interno do servidor", details: errorMessage },
       { status: 500 },
     );
   }

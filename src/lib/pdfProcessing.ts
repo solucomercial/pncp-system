@@ -6,9 +6,11 @@ import * as pdfjsLib from "pdfjs-dist";
 import { generateEmbedding } from "./embedding";
 import { pncp } from "./comprasApi";
 
-type ApiPncpLicitacao = any; 
+// --- CORREÇÃO: Importar o tipo TextItem oficial ---
+import type { TextItem } from "pdfjs-dist/types/src/display/api.js";
 
-// --- TAREFA 2: Tipo de retorno atualizado ---
+type ApiPncpLicitacao = Record<string, any>; 
+
 interface ProcessResult {
   fullTextFromAllPdfs: string;
   allFileUrls: string[];
@@ -32,8 +34,11 @@ async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
     const page = await doc.getPage(i);
     const textContent = await page.getTextContent();
     
+    // --- CORREÇÃO: O type guard 'item is TextItem' agora usa o tipo importado
+    // e o 'map' subsequente também usa o tipo TextItem correto.
     const pageText = textContent.items
-      .map((item: any) => item.str) 
+      .filter((item): item is TextItem => 'str' in item) 
+      .map((item: TextItem) => item.str) 
       .join(" ");
       
     fullText += pageText + "\n";
@@ -62,30 +67,28 @@ function chunkText(
 
 export async function processAndEmbedDocuments(
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao, 
-): Promise<ProcessResult> { // --- TAREFA 2: Tipo de retorno atualizado ---
+): Promise<ProcessResult> {
   console.log(`[ETL] Processando documentos para: ${licitacao.numeroControlePNCP}`);
   let fullTextFromAllPdfs = "";
-  let allFileUrls: string[] = []; // --- TAREFA 2: Array para guardar links ---
+  let allFileUrls: string[] = []; 
 
   try {
-    const files = await pncp.getLicitacaoFiles(
+    const files: Record<string, any>[] = await pncp.getLicitacaoFiles(
       licitacao.cnpjOrgao,
       licitacao.anoCompra.toString(),
       licitacao.sequencialCompra.toString(),
     );
 
-    // --- TAREFA 2: Captura TODOS os links de arquivos válidos ---
     allFileUrls = files
-      .filter((f: any) => f.url)
-      .map((f: any) => f.url as string);
+      .filter((f) => f.url)
+      .map((f) => f.url as string);
 
     const pdfFiles = files.filter(
-      (f: any) => f.tipo === "application/pdf" && f.url,
+      (f) => f.tipo === "application/pdf" && f.url,
     );
     
     if (pdfFiles.length === 0) {
       console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP}.`);
-      // Retorna os links (mesmo que não sejam PDF) e o texto vazio
       return { fullTextFromAllPdfs: "", allFileUrls };
     }
     
