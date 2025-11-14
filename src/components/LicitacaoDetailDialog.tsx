@@ -31,7 +31,7 @@ function formatarData(data: Date | string | null): string {
   });
 }
 
-function formatarValor(valor: any): string {
+function formatarValor(valor: string | number | null | undefined): string {
   const num = Number(valor);
   if (isNaN(num) || num === 0) return "N/A";
   return num.toLocaleString("pt-BR", {
@@ -65,10 +65,11 @@ export default function LicitacaoDetailDialog({
       }
 
       toast.success("Obrigado pelo seu feedback!");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       toast.error(
-        error.message === "Não autorizado"
+        errorMessage === "Não autorizado"
           ? "Você precisa estar logado para votar."
           : "Erro ao enviar feedback."
       );
@@ -155,7 +156,7 @@ export default function LicitacaoDetailDialog({
 
                   {licitacao.justificativaRelevanciaIA && (
                     <p className="text-sm text-muted-foreground italic">
-                      "{licitacao.justificativaRelevanciaIA}"
+                      &quot;{licitacao.justificativaRelevanciaIA}&quot;
                     </p>
                   )}
 

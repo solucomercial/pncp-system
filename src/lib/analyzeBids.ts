@@ -4,7 +4,7 @@ import { pncpLicitacao } from "@/lib/db/schema";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash-lite",
   generationConfig: {
     responseMimeType: "application/json", 
     temperature: 0.2,
@@ -23,27 +23,27 @@ interface FullAnalysis extends AIAnalysis {
 }
 
 // Tipo para a licitação vinda da API PNCP (antes do upsert)
-type ApiPncpLicitacao = Record<string, any>; 
+type ApiPncpLicitacao = Record<string, unknown>; 
 
 export async function analyzeLicitacao(
   // Aceita o tipo inferido do schema Drizzle OU o tipo da API
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao,
 ): Promise<FullAnalysis | null> {
-  console.log(`Analisando licitação: ${licitacao.numeroControlePNCP}`);
+  console.log(`Analisando licitação: ${licitacao.numeroControlePNCP as string}`);
   
   // 1. Processa e salva os documentos (agora retorna texto E links)
   const { fullTextFromAllPdfs, allFileUrls } = await processAndEmbedDocuments(licitacao);
 
   // 2. Prepara o contexto da licitação
   const licitacaoContext = {
-    objeto: licitacao.objetoCompra,
+    objeto: licitacao.objetoCompra as string,
     // Converte 'Decimal' (do Prisma) ou 'string' (do Drizzle/API) para 'number'
     valor: Number(licitacao.valorEstimado) || 0, 
-    modalidade: licitacao.modalidade,
-    orgao: licitacao.orgao,
-    municipio: licitacao.municipio,
-    uf: licitacao.uf,
-    dataPublicacao: licitacao.dataPublicacaoPNCP,
+    modalidade: licitacao.modalidade as string,
+    orgao: licitacao.orgao as string,
+    municipio: licitacao.municipio as string,
+    uf: licitacao.uf as string,
+    dataPublicacao: licitacao.dataPublicacaoPNCP as Date | string,
   };
 
   // 3. Define o prompt de relevância
@@ -82,7 +82,7 @@ export async function analyzeLicitacao(
     const responseText = result.response.text();
     const analysis = JSON.parse(responseText) as AIAnalysis;
 
-    console.log(`Análise concluída para ${licitacao.numeroControlePNCP}: Relevância ${analysis.grauRelevanciaIA}`);
+    console.log(`Análise concluída para ${licitacao.numeroControlePNCP as string}: Relevância ${analysis.grauRelevanciaIA}`);
     
     return {
       ...analysis,
@@ -90,7 +90,7 @@ export async function analyzeLicitacao(
     };
     
   } catch (error) {
-    console.error(`Erro ao analisar licitação ${licitacao.numeroControlePNCP}:`, error);
+    console.error(`Erro ao analisar licitação ${licitacao.numeroControlePNCP as string}:`, error);
     
     return {
       resumo: "Análise de IA falhou.",

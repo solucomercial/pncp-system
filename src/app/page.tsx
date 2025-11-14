@@ -138,20 +138,23 @@ function LicitacoesClientPage() {
   const { filters, pagination, sorting, viewMode } = useMemo(() => {
     const params = new URLSearchParams(searchParams);
     
-    let parsedFilters: Record<string, any> = {}; 
+    // --- CORREÇÃO INICIADA ---
+    let parsedFilters: Partial<Filters> = {}; // Mudar para Partial<Filters>
     const filterKeys: Array<keyof Filters> = ["query", "dataInicial", "dataFinal", "sortBy", "grauRelevanciaIA", "orgao", "cnpjOrgao", "uf", "municipio", "valorMin", "valorMax", "modalidade", "numeroProcesso"];
     let hasFilterParam = false;
     
     filterKeys.forEach(key => {
       if (params.has(key)) {
-        parsedFilters[key] = params.get(key)!; 
+        // Cast para Record para permitir atribuição de chave dinâmica
+        (parsedFilters as Record<string, string | number>)[key] = params.get(key)!; 
         hasFilterParam = true;
       }
     });
 
     if (!hasFilterParam) {
-      parsedFilters = getDefaultFilters();
+      parsedFilters = getDefaultFilters(); // Esta linha agora é válida
     }
+    // --- CORREÇÃO CONCLUÍDA ---
 
     const pageIndex = params.get("page") ? parseInt(params.get("page")!, 10) - 1 : 0;
     const pageSize = params.get("pageSize") ? parseInt(params.get("pageSize")!, 10) : 10;

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { pncpLicitacao } from "@/lib/db/schema";
 import { and, gte, lte, ilike } from "drizzle-orm";
 
-function convertToCSV(data: Record<string, any>[]) {
+function convertToCSV(data: Record<string, unknown>[]) {
   if (data.length === 0) {
     return "";
   }
@@ -12,7 +12,7 @@ function convertToCSV(data: Record<string, any>[]) {
 
   for (const row of data) {
     const values = headers.map((header) => {
-      let value = row[header];
+      let value: unknown = row[header];
       if (value === null || value === undefined) {
         value = "";
       } else if (typeof value === 'string') {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const ApiResponseSchema = z.object({
-  data: z.array(z.any()),
+  data: z.array(z.unknown()),
 });
 
 export class ComprasApi {
@@ -39,7 +39,7 @@ export class ComprasApi {
   async getLicitacoes(
     data: string,
     pagina: number
-  ): Promise<{ data: Record<string, any>[] }> {
+  ): Promise<{ data: Record<string, unknown>[] }> {
     const url = `${this.baseUrl}/v1/contratacoes/publicacao?dataInicial=${data}&dataFinal=${data}&pagina=${pagina}&tamanhoPagina=100`;
     
     try {
@@ -57,7 +57,7 @@ export class ComprasApi {
         console.error("Erro de validação Zod (getLicitacoes):", validation.error.issues);
         throw new Error("Formato de resposta inesperado da API PNCP.");
       }
-      return validation.data as { data: Record<string, any>[] };
+      return validation.data as { data: Record<string, unknown>[] };
     } catch (error) {
       console.error(`[ComprasApi] Erro ao buscar licitações:`, error);
       throw error;
@@ -68,7 +68,7 @@ export class ComprasApi {
     cnpj: string,
     ano: string,
     sequencial: string
-  ): Promise<Record<string, any>[]> {
+  ): Promise<Record<string, unknown>[]> {
     const url = `${this.baseUrl}/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos`;
     
     try {
@@ -79,9 +79,9 @@ export class ComprasApi {
         return [];
       }
 
-      const json = await response.json();
+      const json: unknown = await response.json();
       if (Array.isArray(json)) {
-        return json;
+        return json as Record<string, unknown>[];
       }
       
       return [];

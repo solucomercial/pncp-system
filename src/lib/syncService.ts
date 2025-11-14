@@ -20,7 +20,7 @@ export async function fetchLicitacoesFromPNCP(
 ): Promise<NovaLicitacao[]> {
   let pagina = 1;
   const todasLicitacoes: NovaLicitacao[] = [];
-  let licitacoesDaPagina;
+  let licitacoesDaPagina: Record<string, unknown>[] | null;
 
   console.log(
     `[SyncService] Iniciando busca no PNCP para data: ${date} (Página ${pagina})`,
@@ -59,38 +59,38 @@ export async function fetchLicitacoesFromPNCP(
       );
       todasLicitacoes.push(
         ...licitacoesDaPagina.map(
-          (item: Record<string, any>): NovaLicitacao => ({ // <-- CORRIGIDO AQUI
-            numeroControlePNCP: item.numeroControlePNCP,
-            cnpjOrgao: item.orgao.cnpj,
-            orgao: item.orgao.nome,
-            unidadeOrgao: item.unidadeOrgao.nome,
-            municipio: item.municipio.nome,
-            uf: item.uf.sigla,
-            anoCompra: item.anoCompra,
-            sequencialCompra: item.sequencialCompra,
-            modalidade: item.modalidade.nome,
-            numeroProcesso: item.numeroProcesso,
-            objetoCompra: item.objetoCompra,
+          (item: Record<string, unknown>): NovaLicitacao => ({ // <-- CORRIGIDO AQUI
+            numeroControlePNCP: item.numeroControlePNCP as string,
+            cnpjOrgao: (item.orgao as Record<string, unknown>).cnpj as string,
+            orgao: (item.orgao as Record<string, unknown>).nome as string,
+            unidadeOrgao: (item.unidadeOrgao as Record<string, unknown>).nome as string,
+            municipio: (item.municipio as Record<string, unknown>).nome as string,
+            uf: (item.uf as Record<string, unknown>).sigla as string,
+            anoCompra: item.anoCompra as number,
+            sequencialCompra: item.sequencialCompra as number,
+            modalidade: (item.modalidade as Record<string, unknown>).nome as string,
+            numeroProcesso: item.numeroProcesso as string,
+            objetoCompra: item.objetoCompra as string,
             valorEstimado: item.valorEstimado ? String(item.valorEstimado) : null,
-            dataPublicacaoPNCP: new Date(item.dataPublicacaoPNCP),
-            dataAtualizacao: new Date(item.dataAtualizacao),
-            situacao: item.situacao.nome,
-            linkSistemaOrigem: item.linkSistemaOrigem,
-            linkPNCP: item.linkPNCP,
+            dataPublicacaoPNCP: new Date(item.dataPublicacaoPNCP as string),
+            dataAtualizacao: new Date(item.dataAtualizacao as string),
+            situacao: (item.situacao as Record<string, unknown>).nome as string,
+            linkSistemaOrigem: item.linkSistemaOrigem as string,
+            linkPNCP: item.linkPNCP as string,
             iaResumo: null,
             iaPalavrasChave: [],
             documentosLinks: [], 
-            modoDisputa: item.modoDisputa ? item.modoDisputa.nome : null,
+            modoDisputa: item.modoDisputa ? (item.modoDisputa as Record<string, unknown>).nome as string : null,
             criterioJulgamento: item.criterioJulgamento
-              ? item.criterioJulgamento.nome
+              ? (item.criterioJulgamento as Record<string, unknown>).nome as string
               : null,
-            informacaoComplementar: item.informacaoComplementar,
-            aceitaJustificativa: item.aceitaJustificativa,
-            niSolicitante: item.niSolicitante,
+            informacaoComplementar: item.informacaoComplementar as string,
+            aceitaJustificativa: item.aceitaJustificativa as boolean,
+            niSolicitante: item.niSolicitante as string,
             dataAutorizacao: item.dataAutorizacao
-              ? new Date(item.dataAutorizacao)
+              ? new Date(item.dataAutorizacao as string)
               : null,
-            justificativaPresencial: item.justificativaPresencial,
+            justificativaPresencial: item.justificativaPresencial as string,
             grauRelevanciaIA: null,
             justificativaRelevanciaIA: null,
           }),

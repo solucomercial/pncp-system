@@ -9,7 +9,7 @@ import { pncp } from "./comprasApi";
 // --- CORREÇÃO: Importar o tipo TextItem oficial ---
 import type { TextItem } from "pdfjs-dist/types/src/display/api.js";
 
-type ApiPncpLicitacao = Record<string, any>; 
+type ApiPncpLicitacao = Record<string, unknown>; 
 
 interface ProcessResult {
   fullTextFromAllPdfs: string;
@@ -68,15 +68,15 @@ function chunkText(
 export async function processAndEmbedDocuments(
   licitacao: typeof pncpLicitacao.$inferSelect | ApiPncpLicitacao, 
 ): Promise<ProcessResult> {
-  console.log(`[ETL] Processando documentos para: ${licitacao.numeroControlePNCP}`);
+  console.log(`[ETL] Processando documentos para: ${licitacao.numeroControlePNCP as string}`);
   let fullTextFromAllPdfs = "";
   let allFileUrls: string[] = []; 
 
   try {
-    const files: Record<string, any>[] = await pncp.getLicitacaoFiles(
-      licitacao.cnpjOrgao,
-      licitacao.anoCompra.toString(),
-      licitacao.sequencialCompra.toString(),
+    const files: Record<string, unknown>[] = await pncp.getLicitacaoFiles(
+      licitacao.cnpjOrgao as string,
+      (licitacao.anoCompra as number).toString(),
+      (licitacao.sequencialCompra as number).toString(),
     );
 
     allFileUrls = files
@@ -88,35 +88,35 @@ export async function processAndEmbedDocuments(
     );
     
     if (pdfFiles.length === 0) {
-      console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP}.`);
+      console.log(`[ETL] Nenhum PDF encontrado para ${licitacao.numeroControlePNCP as string}.`);
       return { fullTextFromAllPdfs: "", allFileUrls };
     }
     
     await db.delete(licitacaoDocumento)
-      .where(eq(licitacaoDocumento.licitacaoPncpId, licitacao.numeroControlePNCP));
+      .where(eq(licitacaoDocumento.licitacaoPncpId, licitacao.numeroControlePNCP as string));
 
     for (const file of pdfFiles) {
       try {
-        console.log(`[ETL] Baixando: ${file.nome}`);
-        const pdfBuffer = await downloadFile(file.url);
+        console.log(`[ETL] Baixando: ${file.nome as string}`);
+        const pdfBuffer = await downloadFile(file.url as string);
         const text = await extractTextFromPdfBuffer(pdfBuffer);
         
         if (!text) continue;
         
-        fullTextFromAllPdfs += `Conteúdo do arquivo "${file.nome}":\n${text}\n\n--- (Fim do Documento) ---\n\n`;
+        fullTextFromAllPdfs += `Conteúdo do arquivo "${file.nome as string}":\n${text}\n\n--- (Fim do Documento) ---\n\n`;
 
         const chunks = chunkText(text);
         if (chunks.length === 0) continue;
 
-        console.log(`[ETL] Gerando ${chunks.length} embeddings para ${file.nome}...`);
+        console.log(`[ETL] Gerando ${chunks.length} embeddings para ${file.nome as string}...`);
 
         const chunksToInsert = [];
 
         for (const chunk of chunks) {
           const embedding = await generateEmbedding(chunk);
           chunksToInsert.push({
-            licitacaoPncpId: licitacao.numeroControlePNCP,
-            nomeArquivo: file.nome,
+            licitacaoPncpId: licitacao.numeroControlePNCP as string,
+            nomeArquivo: file.nome as string,
             textoChunk: chunk,
             embedding: embedding,
           });
@@ -127,15 +127,15 @@ export async function processAndEmbedDocuments(
         }
 
       } catch (docError) {
-        console.error(`[ETL] Falha ao processar doc ${file.nome}:`, docError);
+        console.error(`[ETL] Falha ao processar doc ${file.nome as string}:`, docError);
       }
     }
 
-    console.log(`[ETL] Documentos processados com sucesso para ${licitacao.numeroControlePNCP}.`);
+    console.log(`[ETL] Documentos processados com sucesso para ${licitacao.numeroControlePNCP as string}.`);
     return { fullTextFromAllPdfs, allFileUrls };
 
   } catch (error) {
-    console.error(`[ETL] Erro fatal no pipeline para ${licitacao.numeroControlePNCP}:`, error);
+    console.error(`[ETL] Erro fatal no pipeline para ${licitacao.numeroControlePNCP as string}:`, error);
     return { fullTextFromAllPdfs: "", allFileUrls: [] };
   }
 }
