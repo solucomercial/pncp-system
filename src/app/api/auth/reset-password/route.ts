@@ -1,10 +1,10 @@
 // src/app/api/auth/reset-password/route.ts
-
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { db } from "@/lib/db"; // Import Drizzle db
+import { users } from "@/lib/db/schema"; // Import Drizzle users schema
+import { eq } from "drizzle-orm"; // Import Drizzle 'eq' helper
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
 const RESET_SECRET = process.env.PASSWORD_RESET_SECRET;
 
 // Função para gerar uma senha aleatória segura
@@ -48,10 +48,13 @@ export async function POST(request: Request) {
             );
         }
 
-        // Procura o usuário pelo email
-        const user = await prisma.user.findUnique({
-            where: { email },
-        });
+        // Procura o usuário pelo email (usando Drizzle)
+        const userResult = await db.select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+
+        const user = userResult[0];
 
         if (!user) {
             return new NextResponse(
@@ -64,13 +67,10 @@ export async function POST(request: Request) {
         const newPassword = generateRandomPassword();
         const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-        // Atualiza o usuário no banco de dados com a nova senha
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                password: hashedPassword,
-            },
-        });
+        // Atualiza o usuário no banco de dados com a nova senha (usando Drizzle)
+        await db.update(users)
+            .set({ password: hashedPassword })
+            .where(eq(users.id, user.id));
 
         // Retorna a nova senha (em texto plano) para o administrador
         return NextResponse.json({
